@@ -1,16 +1,16 @@
 import cv2
 import numpy as np
-import utils
 import math
-
 from numpy import linalg
 
 def findDimensions(image, homography):
+    # Initialize 1x3 array of 1 to hold x,y,channel
     base_p1 = np.ones(3, np.float32)
     base_p2 = np.ones(3, np.float32)
     base_p3 = np.ones(3, np.float32)
     base_p4 = np.ones(3, np.float32)
 
+    # Get image Height and Width
     (y, x) = image.shape[:2]
 
     base_p1[:2] = [0, 0]
@@ -18,34 +18,39 @@ def findDimensions(image, homography):
     base_p3[:2] = [0, y]
     base_p4[:2] = [x, y]
 
+    # Initialize va for maxi and min value for
     max_x = None
     max_y = None
     min_x = None
     min_y = None
 
+    # For each one of the points we need to apply the Homography matrix in order to transform into the new space
     for pt in [base_p1, base_p2, base_p3, base_p4]:
 
-        hp = np.matrix(homography, np.float32) * np.matrix(pt, np.float32).T
+        #hp = np.matrix(homography, np.float32) * np.matrix(pt, np.float32).T
+        # Transform base image point into the new space
 
-        hp_arr = np.array(hp, np.float32)
+        hp = np.dot(np.array(homography, np.float32), np.array(pt, np.float32).reshape(-1,1))
 
-        normal_pt = np.array([hp_arr[0] / hp_arr[2], hp_arr[1] / hp_arr[2]], np.float32)
+        # Normalize the coordinate, by defining the correct point the output is a line vector
+        normal_pt = np.array([hp[0, 0] / hp[2, 0], hp[1, 0] / hp[2, 0]], np.float32)
 
-        if (max_x == None or normal_pt[0, 0] > max_x):
-            max_x = normal_pt[0, 0]
+        # normal_pt[] is a line vector will give directly the float value and, even if there is only one value in row zero
 
-        if (max_y == None or normal_pt[1, 0] > max_y):
-            max_y = normal_pt[1, 0]
+        if (max_x == None or normal_pt[0] > max_x):
+            max_x = normal_pt[0]
 
-        if (min_x == None or normal_pt[0, 0] < min_x):
-            min_x = normal_pt[0, 0]
+        if (max_y == None or normal_pt[1] > max_y):
+            max_y = normal_pt[1]
 
-        if (min_y == None or normal_pt[1, 0] < min_y):
-            min_y = normal_pt[1, 0]
+        if (min_x == None or normal_pt[0] < min_x):
+            min_x = normal_pt[0]
 
+        if (min_y == None or normal_pt[1] < min_y):
+            min_y = normal_pt[1]
+    # Limit to zero the value of min_x and min_y
     min_x = min(0, min_x)
     min_y = min(0, min_y)
-
     return (min_x, min_y, max_x, max_y)
 
 
@@ -79,11 +84,12 @@ def find_homography(kp_pt_img, kp_pt_query, sorted_matches):
     if H is None:
         print("No Homography")
     else:
-        print(H)
+        #print(H)
         return H
 
 
 def stitching(base_img, next_img, H):
+    # Normalize to maintaing homogeneus coordianate system
     H = H / H[2, 2]
     H_inv = linalg.inv(H)
 
@@ -93,8 +99,9 @@ def stitching(base_img, next_img, H):
     max_x = max(max_x, base_img.shape[1])
     max_y = max(max_y, base_img.shape[0])
 
-    move_h = np.matrix(np.identity(3), np.float32)
-
+    #move_h = np.matrix(np.identity(3), np.float32)
+    move_h = np.identity(3 , np.float32)
+    # Translate the origin of the image in the positive part of the plane, in order to see it
     if (min_x < 0):
         move_h[0, 2] += -min_x
         max_x += -min_x
@@ -103,18 +110,19 @@ def stitching(base_img, next_img, H):
         move_h[1, 2] += -min_y
         max_y += -min_y
 
-
-    mod_inv_h = move_h * H_inv
-
+    # Inverse translation vector, from H space to normal space
+    mod_inv_h = np.dot(move_h,H_inv)
+    # Return the closest integer near a given number
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
-
+    print(mod_inv_h)
 
 
     # Warp the new image given the homography from the old image
+
     base_img_warp = cv2.warpPerspective(next_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(base_img, mod_inv_h, (img_w, img_h))
-
+    #next_img_warp = base_img
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
 
@@ -122,16 +130,12 @@ def stitching(base_img, next_img, H):
     # enlarged_base_img[:base_img_warp.shape[0],:base_img_warp.shape[1]] = base_img_warp
 
     # Create a mask from the warped image for constructing masked composite
-    (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY),
-                                    0, 255, cv2.THRESH_BINARY)
+    (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
 
-    enlarged_base_img = cv2.add(enlarged_base_img, base_img_warp,
-                                mask=np.bitwise_not(data_map),
-                                dtype=cv2.CV_8U)
+    enlarged_base_img = cv2.add(enlarged_base_img, base_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
 
     # Now add the warped image
-    final_img = cv2.add(enlarged_base_img, next_img_warp,
-                        dtype=cv2.CV_8U)
+    final_img = cv2.add(enlarged_base_img, next_img_warp, dtype=cv2.CV_8U)
 
     cv2.imshow("try", cv2.resize(final_img,(640,480)))
     cv2.waitKey()
