@@ -78,7 +78,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
 
     good = []
     for m, n in matches:
-        if m.distance < 0.8 * n.distance:
+        if m.distance < 0.7 * n.distance:
             good.append(m)
     return good
 
@@ -124,39 +124,55 @@ def stitching(base_img, next_img, H):
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
 
-    # Warp the new image given the homography from the old imagemogra
+    # Warp the new image given the homography from the old image
     base_img_warp = cv2.warpPerspective(base_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
-    #next_img_warp = base_img
+
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
+    #enlarged_next_img = np.zeros((img_h, img_w, 3), np.uint8)
 
-
-    #enlarged_base_img[y:y+base_img_rgb.shape[0],x:x+base_img_rgb.shape[1]] = base_img_rgb
-    #enlarged_base_img[:base_img_warp.shape[0],:base_img_warp.shape[1]] = base_img_warp
-
+    print(int(mod_inv_h[1,2]))
     # Create a mask from the warped image for constructing masked composite (insert black base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_base_img = cv2.add(enlarged_base_img, base_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
-    print(enlarged_base_img.shape)
-    print(next_img_warp.shape)
+    #enlarged_next_img = cv2.add(enlarged_next_img, next_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
     # Now add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_base_img, next_img_warp, dtype=cv2.CV_8U)
-
     #cv2.imshow("try", cv2.resize(final_img,(640,480)))
-    cv2.imshow("try", final_img)
-    cv2.imwrite("img_folder/test3_orb3000_07dlim.jpeg", final_img)
-    cv2.waitKey()
+    #final_img[int(mod_inv_h[1, 2]):final_img.shape[0], int(mod_inv_h[0, 2]): final_img.shape[1]] = next_img
+    cv2.imshow("try",cv2.medianBlur(final_img, 3))
+    cv2.imwrite("img_folder/test4_orb3000_07dlim.jpeg", final_img)
+
+
+    last_p1 = np.ones(3, np.float32)
+    last_p2 = np.ones(3, np.float32)
+    last_p3 = np.ones(3, np.float32)
+    last_p4 = np.ones(3, np.float32)
+    # Last image position
+    (y, x) = next_img_warp.shape[:2]
+
+    last_p1[:2] = [0 + mod_inv_h[0,2], 0 + mod_inv_h[1,2]]
+    last_p2[:2] = [x + mod_inv_h[0,2], 0 + mod_inv_h[1,2]]
+    last_p3[:2] = [0 + mod_inv_h[0,2], y + mod_inv_h[1,2]]
+    last_p4[:2] = [x + mod_inv_h[0,2], y + mod_inv_h[1,2]]
+
+
+    return final_img[int(mod_inv_h[1, 2]):next_img_warp.shape[0] + int(mod_inv_h[1, 2]), int(mod_inv_h[0, 2]): final_img.shape[1] + int(mod_inv_h[0, 2])], final_img
+
 
 
 if __name__ == "__main__":
-    base_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
-    next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03(1).jpeg")
+    base_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02.jpeg")
+    next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02(1).jpeg")
 
     # base_img = cv2.imread("img_folder/IMG_7105.jpg")
     # next_img = cv2.imread("img_folder/IMG_7106.jpg")
 
-    img1_GS = cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY)
-    img2_GS = cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY)
+    #img1_GS = cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY)
+    #img2_GS = cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY)
+
+    img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
+    img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
 
     kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
     kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
@@ -165,4 +181,57 @@ if __name__ == "__main__":
 
     H = find_homography(kp_base_img, kp_next_img, sorted_matches)
 
-    stitching(base_img, next_img, H)
+    final_img_crp, final_img = stitching(base_img, next_img, H)
+    # Second iteration
+
+    base_img = final_img
+    next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
+
+    img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+    img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+
+    kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
+    kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+
+    sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+
+    H = find_homography(kp_base_img, kp_next_img, sorted_matches)
+
+    final_img_crp, final_img = stitching(base_img, next_next_img, H)
+
+    # Third iteration
+
+    base_img = final_img
+    next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03(1).jpeg")
+
+    img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+    img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+
+    kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
+    kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+
+    sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+
+    H = find_homography(kp_base_img, kp_next_img, sorted_matches)
+
+    final_img_crp, final_img = stitching(base_img, next_next_img, H)
+
+    # Fourth iteration
+
+    base_img = final_img
+    next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.04.jpeg")
+
+    img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+    img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+
+    kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
+    kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+
+    sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+
+    H = find_homography(kp_base_img, kp_next_img, sorted_matches)
+
+    final_img_crp, final_img = stitching(base_img, next_next_img, H)
+
+    cv2.imshow("next", cv2.resize(cv2.medianBlur(final_img, 3), (640,480)))
+    cv2.waitKey()
