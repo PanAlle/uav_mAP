@@ -234,4 +234,4 @@ if __name__ == "__main__":
     final_img_crp, final_img = stitching(base_img, next_next_img, H)
 
     cv2.imshow("next", cv2.resize(cv2.medianBlur(final_img, 3), (640,480)))
-    cv2.waitKey()
+    //cv2.waitKey()
