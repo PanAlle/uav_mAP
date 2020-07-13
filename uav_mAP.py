@@ -2,6 +2,17 @@ import cv2
 import numpy as np
 import math
 from numpy import linalg
+import os
+
+
+
+def load_images_from_folder(folder):
+    images = []
+    for filename in os.listdir(folder):
+        img = cv2.imread(os.path.join(folder,filename))
+        if img is not None:
+            images.append(img)
+    return images
 
 def findDimensions(image, H_inv):
     # Initialize 1x3 array of 1 to hold x,y,channel
@@ -78,7 +89,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
 
     good = []
     for m, n in matches:
-        if m.distance < 0.6 * n.distance:
+        if m.distance < 0.4 * n.distance:
             good.append(m)
     return good
 
@@ -91,7 +102,7 @@ def find_homography(kp_base_img, kp_next_img, sorted_matches):
     if H is None:
         print("No Homography")
     else:
-        print(H)
+        # print(H)
         return H
 
 
@@ -104,8 +115,8 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
     H_inv = linalg.inv(H)
     H_inv_old = linalg.inv(H_old)
     #print("Inverse matrix",H_inv)
-    #Find the rectangular hull containing the next_img in the base_img reference frame
-    (min_x, min_y, max_x, max_y) = findDimensions(next_img, H_inv)
+    # Find the rectangular hull containing the next_img in the base_img reference frame
+    (min_x, min_y, max_x, max_y) = findDimensions(next_img,np.dot(np.dot(move_h, H_inv_old), H_inv))
 
     # Adjust max_x, max_y in order to include also the first image
     max_x = max(max_x, full_img.shape[1])
@@ -122,11 +133,9 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
     if (min_y < 0):
         move_h[1, 2] += -min_y
         max_y += -min_y
-    print("Vector move_h \n", np.dot(H_old,move_h_old))
     # First the second image need to be taken to the first image reference frame (H inv) and then need to be
     # translated by move_h. The two transformation can be coupled in mod_inv_h
     mod_inv_h = np.dot(np.dot(H_inv,move_h), np.dot(H_inv_old, move_h_old))
-    print("Vector inv_move_H \n", mod_inv_h)
     # Return the closest integer near a given number
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
@@ -134,18 +143,13 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
     # Warp the new image given the homography from the old image
     base_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
-    #
-    # base_img_warp = cv2.warpPerspective(base_img, move_h, (img_w, img_h))
-    # next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
 
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
-    #enlarged_next_img = np.zeros((img_h, img_w, 3), np.uint8)
 
-    # print(int(mod_inv_h[1,2])) Create a mask from the warped image for constructing masked composite (insert black
+    # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_base_img = cv2.add(enlarged_base_img, base_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
-    #enlarged_next_img = cv2.add(enlarged_next_img, next_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
     # Now add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_base_img, next_img_warp, dtype=cv2.CV_8U)
     #cv2.imshow("try", cv2.resize(final_img,(640,480)))
@@ -172,46 +176,48 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
 
 
 if __name__ == "__main__":
-    base_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02.jpeg")
-    next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02(1).jpeg")
+    # base_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02.jpeg")
+    # next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02(1).jpeg")
 
     # base_img = cv2.imread("img_folder/IMG_7105.jpg")
     # next_img = cv2.imread("img_folder/IMG_7106.jpg")
+    images = load_images_from_folder("Immaginilab")
 
-    #img1_GS = cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY)
-    #img2_GS = cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY)
-
-    img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
-    img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
-
-    kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
-    kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
-
-    sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
-
-    H = find_homography(kp_base_img, kp_next_img, sorted_matches)
     H_old = np.identity(3, np.float32)
     move_h = np.identity(3, np.float32)
-    move_h_old,final_img_crp, final_img = stitching(base_img,base_img, next_img, H, H_old, move_h)
-    cv2.imshow("first iteration", final_img);
-    H_old = H
-    # Second iteration
+    for i in range(0, len(images)):
+        base_img = cv2.imread(images[i])
+        next_img = cv2.imread(images[i+1])
 
-    base_img = final_img_crp
-    #cv2.imshow("Next_img", next_img);
-    next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
+        img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
+        img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
 
-    img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-    img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
+        kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
 
-    kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
-    kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+        sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
 
-    sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+        H = find_homography(kp_base_img, kp_next_img, sorted_matches)
+        move_h_old,final_img_crp, final_img = stitching(base_img,base_img, next_img, H, H_old, move_h)
+        cv2.imshow("first iteration", final_img);
+        H_old = H
+        # Second iteration
 
-    H_1 = find_homography(kp_base_img, kp_next_img, sorted_matches)
-    print("Overall trasnformation \n", H_1)
-    move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
+        base_img = final_img_crp
+        #cv2.imshow("Next_img", next_img);
+        next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
+
+        img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+
+        kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
+        kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+
+        sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+
+        H_1 = find_homography(kp_base_img, kp_next_img, sorted_matches)
+        print("Overall trasnformation \n", H_1)
+        move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
 
     cv2.imshow("next", cv2.resize(cv2.medianBlur(final_img_1, 3), (640,480)))
     cv2.waitKey()
