@@ -20,7 +20,7 @@ def load_images_from_folder(folder):
     sorted_list.sort(key=natural_keys)
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
-        img = img[:][200:1750]
+        #img = img[:][200:1750]
         print(img.shape)
         if img is not None:
             images.append(img)
@@ -201,7 +201,7 @@ if __name__ == "__main__":
 
     # base_img = cv2.imread("img_folder/IMG_7105.jpg")
     # next_img = cv2.imread("img_folder/IMG_7106.jpg")
-    images = load_images_from_folder("maps_home")
+    images = load_images_from_folder("img_folder")
 
     H_old = np.identity(3, np.float32)
     move_h = np.identity(3, np.float32)
@@ -243,5 +243,5 @@ if __name__ == "__main__":
         #print("Overall trasnformation \n", H_1)
         #move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
     print("done")
-    cv2.imwrite("img_save/test_1_maps_homeSIMB.jpeg", cv2.medianBlur(final_img, 3))
+    cv2.imwrite("img_save/test_2_map_class_homeSIMB.jpeg", cv2.medianBlur(final_img, 3))
     cv2.waitKey()
