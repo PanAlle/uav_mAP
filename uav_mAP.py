@@ -3,15 +3,27 @@ import numpy as np
 import math
 from numpy import linalg
 import os
+import re
 
 
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+def natural_keys(text):
+    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
 
 def load_images_from_folder(folder):
     images = []
+    sorted_list = []
     for filename in os.listdir(folder):
+        sorted_list.append(filename)
+    sorted_list.sort(key=natural_keys)
+    for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
+        print(filename)
         if img is not None:
             images.append(img)
+    print("Images loaded")
     return images
 
 def findDimensions(image, H_inv):
@@ -40,7 +52,7 @@ def findDimensions(image, H_inv):
 
 
         # Transform next_image edges into the base space
-        hp = np.dot(np.array(H_inv, np.float32), np.array(pt, np.float32).reshape(-1,1))
+        hp = np.matmul(np.array(H_inv, np.float32), np.array(pt, np.float32).reshape(-1,1))
 
         # Normalize the coordinates, by defining the correct point the output is a line vector
         normal_pt = np.array([hp[0, 0] / hp[2, 0], hp[1, 0] / hp[2, 0]], np.float32)
@@ -89,7 +101,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
 
     good = []
     for m, n in matches:
-        if m.distance < 0.4 * n.distance:
+        if m.distance < 0.5 * n.distance:
             good.append(m)
     return good
 
@@ -108,22 +120,26 @@ def find_homography(kp_base_img, kp_next_img, sorted_matches):
 
 def stitching(full_img, base_img, next_img, H, H_old, move_h):
     # Normalize to maintaing homogeneus coordianate system
-    #print(H)
     H_old = H_old / H_old[2, 2]
     H = H / H[2, 2]
     #Inverse matrix
     H_inv = linalg.inv(H)
     H_inv_old = linalg.inv(H_old)
+    move_h_old = move_h
+    H_inv_old = H_inv_old / H_inv_old[2, 2]
+    H_inv = H_inv / H_inv[2, 2]
+
     #print("Inverse matrix",H_inv)
     # Find the rectangular hull containing the next_img in the base_img reference frame
-    (min_x, min_y, max_x, max_y) = findDimensions(next_img,np.dot(np.dot(move_h, H_inv_old), H_inv))
+    (min_x, min_y, max_x, max_y) = findDimensions(next_img, np.matmul(move_h_old, np.matmul(H_inv_old, H_inv)))
 
+    # print("Matrix multiplication with matmul\n", np.matmul(move_h_old, np.matmul(H_inv_old, H_inv)))
+    # print("Matrix multiplication with matimul inv\n", np.dot(H_inv, np.dot(H_inv_old, move_h_old)))
     # Adjust max_x, max_y in order to include also the first image
     max_x = max(max_x, full_img.shape[1])
     max_y = max(max_y, full_img.shape[0])
     # Define the move vector for each pixel
     # move_h = np.identity(3, np.float32)
-    move_h_old = move_h
     move_h = np.identity(3, np.float32)
     # Translate the origin of the image in the positive part of the plane, in order to see it
     if (min_x < 0):
@@ -135,7 +151,7 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
         max_y += -min_y
     # First the second image need to be taken to the first image reference frame (H inv) and then need to be
     # translated by move_h. The two transformation can be coupled in mod_inv_h
-    mod_inv_h = np.dot(np.dot(H_inv,move_h), np.dot(H_inv_old, move_h_old))
+    mod_inv_h = np.matmul(np.matmul(move_h, move_h_old), np.matmul(H_inv_old, H_inv))
     # Return the closest integer near a given number
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
@@ -143,7 +159,6 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
     # Warp the new image given the homography from the old image
     base_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
-
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
     # Create a mask from the warped image for constructing masked composite (insert black
@@ -169,9 +184,12 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
     last_p2[:2] = [x + mod_inv_h[0,2], 0 + mod_inv_h[1,2]]
     last_p3[:2] = [0 + mod_inv_h[0,2], y + mod_inv_h[1,2]]
     last_p4[:2] = [x + mod_inv_h[0,2], y + mod_inv_h[1,2]]
+    final_img_crp = final_img[int(mod_inv_h[1, 2]):next_img_warp.shape[0] + int(mod_inv_h[1, 2]), int(mod_inv_h[0, 2]): final_img.shape[1] + int(mod_inv_h[0, 2])]
+    # cv2.imshow("Finale_img_crop", cv2.resize(final_img_crp, (480,640)))
+    cv2.imshow("Img_twisted", cv2.resize(next_img, (480, 640)))
+    cv2.waitKey(2)
 
-
-    return move_h,final_img[int(mod_inv_h[1, 2]):next_img_warp.shape[0] + int(mod_inv_h[1, 2]), int(mod_inv_h[0, 2]): final_img.shape[1] + int(mod_inv_h[0, 2])], final_img
+    return move_h, next_img, final_img
 
 
 
@@ -181,43 +199,47 @@ if __name__ == "__main__":
 
     # base_img = cv2.imread("img_folder/IMG_7105.jpg")
     # next_img = cv2.imread("img_folder/IMG_7106.jpg")
-    images = load_images_from_folder("Immaginilab")
+    images = load_images_from_folder("img_folder")
 
     H_old = np.identity(3, np.float32)
     move_h = np.identity(3, np.float32)
-    for i in range(0, len(images)):
-        base_img = cv2.imread(images[i])
-        next_img = cv2.imread(images[i+1])
+    base_img = images[0]
+
+    for i in range(1, len(images)):
+        next_img = images[i]
 
         img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
         img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
-
+        print("At iteration", i, "applied Gaussian blur")
         kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
         kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
-
+        print("At iteration", i, "applied computed descriptor")
         sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
-
+        print("At iteration", i, "applied Sorted Matches")
         H = find_homography(kp_base_img, kp_next_img, sorted_matches)
-        move_h_old,final_img_crp, final_img = stitching(base_img,base_img, next_img, H, H_old, move_h)
-        cv2.imshow("first iteration", final_img);
-        H_old = H
-        # Second iteration
-
-        base_img = final_img_crp
+        if (i == 1):
+            move_h_old,final_img_crp, final_img = stitching(base_img, base_img, next_img, H, H_old, move_h)
+        else:
+            move_h_old, final_img_crp, final_img = stitching(final_img, base_img, next_img, H, H_old, move_h_old)
+        H_old = np.matmul(H, H_old)
+        print(H_old)
+        print("At iteration", i, "applied compute old homograhy")
+        move_h_old = np.matmul(move_h, move_h_old)
+        base_img = next_img
         #cv2.imshow("Next_img", next_img);
-        next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
+        #next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
 
-        img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-        img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        #img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        #img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
 
-        kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
-        kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+        #kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
+        #kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
 
-        sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+        #sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
 
-        H_1 = find_homography(kp_base_img, kp_next_img, sorted_matches)
-        print("Overall trasnformation \n", H_1)
-        move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
-
-    cv2.imshow("next", cv2.resize(cv2.medianBlur(final_img_1, 3), (640,480)))
+        #H_1 = find_homography(kp_base_img, kp_next_img, sorted_matches)
+        #print("Overall trasnformation \n", H_1)
+        #move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
+    print("done")
+    cv2.imshow("next", cv2.resize(cv2.medianBlur(final_img, 3), (640,480)))
     cv2.waitKey()
