@@ -21,7 +21,7 @@ def load_images_from_folder(folder):
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
         img = img[:][200:1750]
-        print(img.shape)
+        print(filename)
         if img is not None:
             images.append(img)
     print("Images loaded")
@@ -102,7 +102,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
 
     good = []
     for m, n in matches:
-        if m.distance < 0.7 * n.distance:
+        if m.distance < 0.6 * n.distance:
             good.append(m)
     return good
 
@@ -119,21 +119,14 @@ def find_homography(kp_base_img, kp_next_img, sorted_matches):
         return H
 
 
-def stitching(full_img, base_img, next_img, H, H_old, move_h):
+def stitching(full_img, next_img, H):
     # Normalize to maintaing homogeneus coordianate system
-    #H_old = H_old / H_old[2, 2]
-    print(H_old)
     H = H / H[2, 2]
     #Inverse matrix
     H_inv = linalg.inv(H)
-    H_inv_old = linalg.inv(H_old)
-    move_h_old = move_h
-    #H_inv_old = H_inv_old / H_inv_old[2, 2]
-    #H_inv = H_inv / H_inv[2, 2]
-
     #print("Inverse matrix",H_inv)
     # Find the rectangular hull containing the next_img in the base_img reference frame
-    (min_x, min_y, max_x, max_y) = findDimensions(next_img,  np.linalg.multi_dot([move_h_old, H_inv_old, H_inv]))
+    (min_x, min_y, max_x, max_y) = findDimensions(next_img,  H_inv)
     # print("Matrix multiplication with matmul\n", np.matmul(move_h_old, np.matmul(H_inv_old, H_inv)))
     # print("Matrix multiplication with matimul inv\n", np.dot(H_inv, np.dot(H_inv_old, move_h_old)))
     # Adjust max_x, max_y in order to include also the first image
@@ -152,47 +145,26 @@ def stitching(full_img, base_img, next_img, H, H_old, move_h):
         max_y += -min_y
     # First the second image need to be taken to the first image reference frame (H inv) and then need to be
     # translated by move_h. The two transformation can be coupled in mod_inv_h
-    mod_inv_h = np.linalg.multi_dot([move_h, move_h_old, H_inv_old, H_inv])
+    mod_inv_h = np.matmul(H_inv, move_h)
     # np.linalg.multi_dot([move_h, move_h_old, H_inv_old, H_inv])
     # Return the closest integer near a given number
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
 
     # Warp the new image given the homography from the old image
-    base_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
+    full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
-    enlarged_base_img = cv2.add(enlarged_base_img, base_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
+    enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
     # Now add the warped image with 8bit/pixel (0 - 255)
-    final_img = cv2.add(enlarged_base_img, next_img_warp, dtype=cv2.CV_8U)
-    #cv2.imshow("try", cv2.resize(final_img,(640,480)))
-    #final_img[int(mod_inv_h[1, 2]):final_img.shape[0], int(mod_inv_h[0, 2]): final_img.shape[1]] = next_img
-    #cv2.imshow("try",cv2.medianBlur(final_img, 3))
-    #cv2.imwrite("img_folder/test4_orb3000_07dlim.jpeg", final_img)
+    final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
 
 
-    last_p1 = np.ones(3, np.float32)
-    last_p2 = np.ones(3, np.float32)
-    last_p3 = np.ones(3, np.float32)
-    last_p4 = np.ones(3, np.float32)
-    # Last image position
-    (y, x) = next_img_warp.shape[:2]
-
-    last_p1[:2] = [0 + mod_inv_h[0,2], 0 + mod_inv_h[1,2]]
-    last_p2[:2] = [x + mod_inv_h[0,2], 0 + mod_inv_h[1,2]]
-    last_p3[:2] = [0 + mod_inv_h[0,2], y + mod_inv_h[1,2]]
-    last_p4[:2] = [x + mod_inv_h[0,2], y + mod_inv_h[1,2]]
-    final_img_crp = final_img[int(mod_inv_h[1, 2]):next_img_warp.shape[0] + int(mod_inv_h[1, 2]), int(mod_inv_h[0, 2]): final_img.shape[1] + int(mod_inv_h[0, 2])]
-    # cv2.imshow("Finale_img_crop", cv2.resize(final_img_crp, (480,640)))
-    #cv2.imshow("Img_twisted", cv2.resize(next_img, (480, 640)))
-    #cv2.waitKey(2)
-
-    return move_h, next_img, final_img
-
+    return final_img
 
 
 if __name__ == "__main__":
@@ -209,7 +181,6 @@ if __name__ == "__main__":
 
     for i in range(1, len(images)):
         next_img = images[i]
-
         img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
         img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
         print("At iteration", i, "applied Gaussian blur")
@@ -220,14 +191,14 @@ if __name__ == "__main__":
         print("At iteration", i, "applied Sorted Matches")
         H = find_homography(kp_base_img, kp_next_img, sorted_matches)
         if (i == 1):
-            move_h_old,final_img_crp, final_img = stitching(base_img, base_img, next_img, H, H_old, move_h)
+            final_img = stitching(base_img, next_img, H)
         else:
-            move_h_old, final_img_crp, final_img = stitching(final_img, base_img, next_img, H, H_old, move_h_old)
-        H_old = np.matmul(H, H_old)
+            final_img = stitching(final_img, next_img, H)
+        #H_old = np.matmul(H, H_old)
         # print(H_old)
         print("At iteration", i, "applied compute old homograhy")
-        move_h_old = np.matmul(move_h, move_h_old)
-        base_img = next_img
+        #move_h_old = np.matmul(move_h, move_h_old)
+        base_img = final_img
         #cv2.imshow("Next_img", next_img);
         #next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
 
@@ -243,5 +214,6 @@ if __name__ == "__main__":
         #print("Overall trasnformation \n", H_1)
         #move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
     print("done")
-    cv2.imwrite("img_save/test_1_maps_homeSIMB.jpeg", cv2.medianBlur(final_img, 3))
+    cv2.imshow("next", final_img)
+    cv2.imwrite("img_save/test_1_maps_homeMB.jpeg", cv2.medianBlur(final_img, 3))
     cv2.waitKey()
