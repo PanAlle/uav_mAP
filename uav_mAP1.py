@@ -4,8 +4,11 @@ import math
 from numpy import linalg
 import os
 import re
+import csv
+import time
 
 
+# Sort images based on number
 def atoi(text):
     return int(text) if text.isdigit() else text
 
@@ -20,7 +23,7 @@ def load_images_from_folder(folder):
     sorted_list.sort(key=natural_keys)
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
-        #img = img[:][230:1750]
+        img = img[:][230:1750]
         print(filename)
         if img is not None:
             images.append(img)
@@ -37,6 +40,7 @@ def findDimensions(image, H_inv):
     # Get image Height and Width
     (y, x) = image.shape[:2]
 
+    # Store corner points
     base_p1[:2] = [0, 0]
     base_p2[:2] = [x, 0]
     base_p3[:2] = [0, y]
@@ -51,8 +55,7 @@ def findDimensions(image, H_inv):
     # For each one of the points we need to apply the inverse Homography matrix in order to transform the points of the next image to the base frame
     for pt in [base_p1, base_p2, base_p3, base_p4]:
 
-
-        # Transform next_image edges into the base space
+        # Transform next_image corners into the base space
         hp = np.matmul(np.array(H_inv, np.float32), np.array(pt, np.float32).reshape(-1,1))
 
         # Normalize the coordinates, by defining the correct point the output is a line vector
@@ -75,42 +78,31 @@ def findDimensions(image, H_inv):
     return (min_x, min_y, max_x, max_y)
 
 
-def features_detection(img, type):
-    if type == "ORB":
-        detected_points = 4000
-        descriptor = cv2.ORB_create(nfeatures=detected_points)
-    elif type == "SURF":
-        descriptor = cv2.xfeatures2d.SURF_create()
+def features_detection(img):
+    descriptor = cv2.xfeatures2d.SURF_create()
     # Other than none we can pass a mask to cover parts of the image that is not needed
     kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None)
     return kp_pt, kp_descriptor
 
 
 def feature_matching(base_img_descriptor, next_img_descriptor):
-    # Create a Brute Force matcher object, for ORB is advised to use HAMMING distance
-    # crossCheck=True store only cross correlated matches between the two images
-
-    #bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    # Match the descriptors giving as input the two images descriptor
-
-    #matches = bf.match(base_img_descriptor, next_img_descriptor)
-    # Sort the matches in order of distance
+    # Create a Brute Force matcher object, for SURF is advised to use k nearest neighbour and define 2 groups.
     bf = cv2.BFMatcher()
     #give the two best matches for each descriptor
     matches = bf.knnMatch(base_img_descriptor, next_img_descriptor, k=2)
-    #sorted_matches = sorted(matches, key=lambda m: m.distance)
 
-    good = []
+    # Initialize an array to store good matches in terms of distance
+    sel_matches = []
     for m, n in matches:
         if m.distance < 0.6 * n.distance:
-            good.append(m)
-    return good
+            sel_matches.append(m)
+    return sel_matches
 
 
-def find_homography(kp_base_img, kp_next_img, sorted_matches):
-    src_pts = np.float32([kp_base_img[m.queryIdx].pt for m in sorted_matches]).reshape(-1, 1, 2)
-    dst_pts = np.float32([kp_next_img[m.trainIdx].pt for m in sorted_matches]).reshape(-1, 1, 2)
-    ## find homography matrix and do perspective transform by using of RANSAC
+def find_homography(kp_base_img, kp_next_img, sel_matches):
+    src_pts = np.float32([kp_base_img[m.queryIdx].pt for m in sel_matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp_next_img[m.trainIdx].pt for m in sel_matches]).reshape(-1, 1, 2)
+    # Find homography matrix and do perspective transform by using of RANSAC
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
     if H is None:
         print("No Homography")
@@ -124,16 +116,12 @@ def stitching(full_img, next_img, H):
     H = H / H[2, 2]
     #Inverse matrix
     H_inv = linalg.inv(H)
-    #print("Inverse matrix",H_inv)
     # Find the rectangular hull containing the next_img in the base_img reference frame
     (min_x, min_y, max_x, max_y) = findDimensions(next_img,  H_inv)
-    # print("Matrix multiplication with matmul\n", np.matmul(move_h_old, np.matmul(H_inv_old, H_inv)))
-    # print("Matrix multiplication with matimul inv\n", np.dot(H_inv, np.dot(H_inv_old, move_h_old)))
     # Adjust max_x, max_y in order to include also the first image
     max_x = max(max_x, full_img.shape[1])
     max_y = max(max_y, full_img.shape[0])
     # Define the move vector for each pixel
-    # move_h = np.identity(3, np.float32)
     move_h = np.identity(3, np.float32)
     # Translate the origin of the image in the positive part of the plane, in order to see it
     if (min_x < 0):
@@ -146,7 +134,6 @@ def stitching(full_img, next_img, H):
     # First the second image need to be taken to the first image reference frame (H inv) and then need to be
     # translated by move_h. The two transformation can be coupled in mod_inv_h
     mod_inv_h = np.matmul(H_inv, move_h)
-    # np.linalg.multi_dot([move_h, move_h_old, H_inv_old, H_inv])
     # Return the closest integer near a given number
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
@@ -168,28 +155,30 @@ def stitching(full_img, next_img, H):
 
 
 if __name__ == "__main__":
-    # base_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02.jpeg")
-    # next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.02(1).jpeg")
+    with open('csv_plots.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["SURF_kp full_img", "SURF_kp next_img", "number of good matches"])
 
-    # base_img = cv2.imread("img_folder/IMG_7105.jpg")
-    # next_img = cv2.imread("img_folder/IMG_7106.jpg")
-    images = load_images_from_folder("img_folder")
+    images = load_images_from_folder("map_campus")
 
-    H_old = np.identity(3, np.float32)
     move_h = np.identity(3, np.float32)
     base_img = images[0]
 
     for i in range(1, len(images)):
+        start_time = time.time()
         next_img = images[i]
         img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
         img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
         print("At iteration", i, "applied Gaussian blur")
-        kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
-        kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
+        kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
+        kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
+        #kptest_full = cv2.resize(cv2.drawKeypoints(base_img, kp_base_img, None, (255,0,0)), (640,480))
+        #kptest_next = cv2.resize(cv2.drawKeypoints(next_img, kp_next_img, None, (0,255,0)), (640,480))
+        #test_output = np.hstack((kptest_full, kptest_next))
         print("At iteration", i, "applied computed descriptor")
-        sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
+        sel_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
         print("At iteration", i, "applied Sorted Matches")
-        H = find_homography(kp_base_img, kp_next_img, sorted_matches)
+        H = find_homography(kp_base_img, kp_next_img, sel_matches)
         if (i == 1):
             final_img = stitching(base_img, next_img, H)
         else:
@@ -199,21 +188,12 @@ if __name__ == "__main__":
         print("At iteration", i, "applied compute old homograhy")
         #move_h_old = np.matmul(move_h, move_h_old)
         base_img = final_img
-        #cv2.imshow("Next_img", next_img);
-        #next_next_img = cv2.imread("img_folder/WhatsApp Image 2020-07-08 at 17.08.03.jpeg")
+        with open('csv_plots.csv', 'a', newline = '') as file:
+            writer = csv.writer(file)
+            writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
 
-        #img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-        #img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        print("done")
 
-        #kp_base_img, kp_descriptor_base_img = features_detection(img1_GS, "SURF")
-        #kp_next_img, kp_descriptor_next_img = features_detection(img2_GS, "SURF")
-
-        #sorted_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
-
-        #H_1 = find_homography(kp_base_img, kp_next_img, sorted_matches)
-        #print("Overall trasnformation \n", H_1)
-        #move_h_old_1, final_img_crp_1, final_img_1 = stitching(final_img, base_img, next_next_img, H_1, H_old, move_h_old)
-    print("done")
     cv2.imshow("next", final_img)
-    cv2.imwrite("img_save/test_1_maps_class_MB.jpeg", cv2.medianBlur(final_img, 3))
+    cv2.imwrite("img_save/map_campus_MB.png", cv2.medianBlur(final_img, 3))
     cv2.waitKey()
