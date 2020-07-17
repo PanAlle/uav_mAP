@@ -20,24 +20,24 @@ with open('csv_plots.csv', 'r') as file:
         time.append(float(row[3]))
         lenght.append(len(kp_full_img))
         # print(lenght)
-
+print(np.sum(time)/60)
 plt.subplot(2, 2, 1)
 plt.plot(lenght, kp_full_img, 'b-', label='kp full map')
 plt.plot(lenght, kp_next_img,  'r-', label='kp next map')
 plt.plot(lenght, good_matches, 'g-', label='good match')
-
+plt.legend()
 plt.subplot(2, 2, 2)
 plt.plot(lenght, time, 'm-.', label='time for each iteration')
-
+plt.legend()
 plt.subplot(2, 2, 3)
 plt.xscale("log")
-plt.plot(lenght, kp_full_img, 'b-', label='kp full map')
-plt.plot(lenght, kp_next_img,  'r-', label='kp next map')
-plt.plot(lenght, good_matches, 'g-', label='good match')
+plt.plot(lenght, kp_full_img, 'b-')
+plt.plot(lenght, kp_next_img,  'r-')
+plt.plot(lenght, good_matches, 'g-')
 
 plt.subplot(2, 2, 4)
 plt.xscale("log")
-plt.plot(lenght, time, 'm-.', label='time for each iteration')
+plt.plot(lenght, time, 'm-.')
 
-plt.legend()
+
 plt.show()

@@ -73,6 +73,7 @@ def findDimensions(image, H_inv):
         if (min_y == None or normal_pt[1] < min_y):
             min_y = normal_pt[1]
     # Limit to zero the value of min_x and min_y
+    move_center = np.array([min_x, min_y])
     min_x = min(0, min_x)
     min_y = min(0, min_y)
     return (min_x, min_y, max_x, max_y)
@@ -118,6 +119,7 @@ def stitching(full_img, next_img, H):
     H_inv = linalg.inv(H)
     # Find the rectangular hull containing the next_img in the base_img reference frame
     (min_x, min_y, max_x, max_y) = findDimensions(next_img,  H_inv)
+    print(min_x, min_y, max_x, max_y)
     # Adjust max_x, max_y in order to include also the first image
     max_x = max(max_x, full_img.shape[1])
     max_y = max(max_y, full_img.shape[0])
@@ -141,18 +143,21 @@ def stitching(full_img, next_img, H):
     # Warp the new image given the homography from the old image
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
+    #cv2.imshow("last frame", next_img_warp)
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
+
+    cv2.imshow("a", next_img_warp)
+    cv2.waitKey(15)
     # Now add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
 
 
-    return final_img
-
+    return final_img, next_img_warp
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
@@ -160,33 +165,30 @@ if __name__ == "__main__":
         writer.writerow(["SURF_kp full_img", "SURF_kp next_img", "number of good matches"])
 
     images = load_images_from_folder("map_campus")
-
     move_h = np.identity(3, np.float32)
     base_img = images[0]
-
     for i in range(1, len(images)):
         start_time = time.time()
         next_img = images[i]
-        img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
-        img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5,5), 0)
+        if (i == 1):
+            img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+            img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        else:
+            img1_GS = cv2.GaussianBlur(cv2.cvtColor(neg, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+            img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
         print("At iteration", i, "applied Gaussian blur")
         kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
         kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
-        #kptest_full = cv2.resize(cv2.drawKeypoints(base_img, kp_base_img, None, (255,0,0)), (640,480))
-        #kptest_next = cv2.resize(cv2.drawKeypoints(next_img, kp_next_img, None, (0,255,0)), (640,480))
-        #test_output = np.hstack((kptest_full, kptest_next))
         print("At iteration", i, "applied computed descriptor")
         sel_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
         print("At iteration", i, "applied Sorted Matches")
         H = find_homography(kp_base_img, kp_next_img, sel_matches)
         if (i == 1):
-            final_img = stitching(base_img, next_img, H)
+            final_img, neg = stitching(base_img, next_img, H)
         else:
-            final_img = stitching(final_img, next_img, H)
-        #H_old = np.matmul(H, H_old)
-        # print(H_old)
+            final_img, neg = stitching(final_img, next_img, H)
+
         print("At iteration", i, "applied compute old homograhy")
-        #move_h_old = np.matmul(move_h, move_h_old)
         base_img = final_img
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
@@ -195,5 +197,5 @@ if __name__ == "__main__":
         print("done")
 
     cv2.imshow("next", final_img)
-    cv2.imwrite("img_save/map_campus_MB.png", cv2.medianBlur(final_img, 3))
+    cv2.imwrite("img_save/map_campus_NM_MB.png", cv2.medianBlur(final_img, 3))
     cv2.waitKey()
