@@ -23,7 +23,7 @@ def load_images_from_folder(folder):
     sorted_list.sort(key=natural_keys)
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
-        img = img[:][230:1750]
+        #img = img[:][230:1750]
         print(filename)
         if img is not None:
             images.append(img)
@@ -73,7 +73,6 @@ def findDimensions(image, H_inv):
         if (min_y == None or normal_pt[1] < min_y):
             min_y = normal_pt[1]
     # Limit to zero the value of min_x and min_y
-    move_center = np.array([min_x, min_y])
     min_x = min(0, min_x)
     min_y = min(0, min_y)
     return (min_x, min_y, max_x, max_y)
@@ -81,7 +80,7 @@ def findDimensions(image, H_inv):
 
 def features_detection(img):
     descriptor = cv2.xfeatures2d.SURF_create()
-    # Other than none we can pass a mask to cover parts of the image that is not needed
+    # None stand for no mask applied
     kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None)
     return kp_pt, kp_descriptor
 
@@ -95,7 +94,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
     # Initialize an array to store good matches in terms of distance
     sel_matches = []
     for m, n in matches:
-        if m.distance < 0.6 * n.distance:
+        if m.distance < 0.9 * n.distance:
             sel_matches.append(m)
     return sel_matches
 
@@ -108,18 +107,16 @@ def find_homography(kp_base_img, kp_next_img, sel_matches):
     if H is None:
         print("No Homography")
     else:
-        # print(H)
         return H
 
 
 def stitching(full_img, next_img, H):
-    # Normalize to maintaing homogeneus coordianate system
+    # Normalize to maintaining homogeneous coordinate system
     H = H / H[2, 2]
-    #Inverse matrix
+    # Inverse matrix
     H_inv = linalg.inv(H)
     # Find the rectangular hull containing the next_img in the base_img reference frame
     (min_x, min_y, max_x, max_y) = findDimensions(next_img,  H_inv)
-    print(min_x, min_y, max_x, max_y)
     # Adjust max_x, max_y in order to include also the first image
     max_x = max(max_x, full_img.shape[1])
     max_y = max(max_y, full_img.shape[0])
@@ -143,20 +140,15 @@ def stitching(full_img, next_img, H):
     # Warp the new image given the homography from the old image
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
-    #cv2.imshow("last frame", next_img_warp)
+    # Create a black image of max required dimensions
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
-
-    cv2.imshow("a", next_img_warp)
-    cv2.waitKey(15)
-    # Now add the warped image with 8bit/pixel (0 - 255)
+    # Add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
-
-
     return final_img, next_img_warp
 
 if __name__ == "__main__":
@@ -164,7 +156,7 @@ if __name__ == "__main__":
         writer = csv.writer(file)
         writer.writerow(["SURF_kp full_img", "SURF_kp next_img", "number of good matches"])
 
-    images = load_images_from_folder("map_campus")
+    images = load_images_from_folder("sample_folder")
     move_h = np.identity(3, np.float32)
     base_img = images[0]
     for i in range(1, len(images)):
@@ -197,5 +189,6 @@ if __name__ == "__main__":
         print("done")
 
     cv2.imshow("next", final_img)
-    cv2.imwrite("img_save/map_campus_NM_MB.png", cv2.medianBlur(final_img, 3))
+    print(final_img.shape)
+    cv2.imwrite("img_save/sample_path_test_1.png", cv2.medianBlur(final_img, 3))
     cv2.waitKey()

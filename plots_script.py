@@ -1,6 +1,10 @@
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+
+
 kp_full_img = []
 kp_next_img = []
 good_matches = []
@@ -21,23 +25,16 @@ with open('csv_plots.csv', 'r') as file:
         lenght.append(len(kp_full_img))
         # print(lenght)
 print(np.sum(time)/60)
-plt.subplot(2, 2, 1)
-plt.plot(lenght, kp_full_img, 'b-', label='kp full map')
-plt.plot(lenght, kp_next_img,  'r-', label='kp next map')
+plt.subplot(1, 2, 1)
+plt.plot(lenght, kp_full_img, 'b-', label='kp base img')
+plt.plot(lenght, kp_next_img,  'r-', label='kp next img')
 plt.plot(lenght, good_matches, 'g-', label='good match')
+plt.xlabel("Samples")
+plt.ylabel("Keypoints")
 plt.legend()
-plt.subplot(2, 2, 2)
+plt.subplot(1, 2, 2)
 plt.plot(lenght, time, 'm-.', label='time for each iteration')
+plt.xlabel("Tot Samples =" + str(len(lenght)) + " Tot time [m] = " + str(round(np.sum(time)/60, 2)))
+plt.ylabel("Time [s]")
 plt.legend()
-plt.subplot(2, 2, 3)
-plt.xscale("log")
-plt.plot(lenght, kp_full_img, 'b-')
-plt.plot(lenght, kp_next_img,  'r-')
-plt.plot(lenght, good_matches, 'g-')
-
-plt.subplot(2, 2, 4)
-plt.xscale("log")
-plt.plot(lenght, time, 'm-.')
-
-
 plt.show()
