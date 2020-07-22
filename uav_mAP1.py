@@ -94,7 +94,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
     # Initialize an array to store good matches in terms of distance
     sel_matches = []
     for m, n in matches:
-        if m.distance < 0.9 * n.distance:
+        if m.distance < 0.7 * n.distance:
             sel_matches.append(m)
     return sel_matches
 
@@ -110,7 +110,7 @@ def find_homography(kp_base_img, kp_next_img, sel_matches):
         return H
 
 
-def stitching(full_img, next_img, H):
+def stitching(full_img, next_img, H, vector):
     # Normalize to maintaining homogeneous coordinate system
     H = H / H[2, 2]
     # Inverse matrix
@@ -137,8 +137,18 @@ def stitching(full_img, next_img, H):
     img_w = int(math.ceil(max_x))
     img_h = int(math.ceil(max_y))
 
+    next_img_center_point = np.identity(3, np.float32)
+    next_img_center_point[0, 2] = next_img.shape[1]/2
+    next_img_center_point[1, 2] = next_img.shape[0]/2
+
+    next_img_center_point = np.matmul(mod_inv_h, next_img_center_point)
+
+    pts = np.array(next_img_center_point)
+    vector.append(pts)
     # Warp the new image given the homography from the old image
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
+    for i in vector:
+        points_out = np.matmul(i, move_h)
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
     # Create a black image of max required dimensions
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
@@ -149,7 +159,10 @@ def stitching(full_img, next_img, H):
     enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
     # Add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
-    return final_img, next_img_warp
+    cv2.circle(next_img_warp, (int(next_img_center_point[0,2]), int(next_img_center_point[1,2])), 3, (255, 255, 0))
+    cv2.imshow("next", next_img_warp)
+    cv2.waitKey(20)
+    return final_img, next_img_warp,points_out
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
@@ -159,6 +172,9 @@ if __name__ == "__main__":
     images = load_images_from_folder("sample_folder")
     move_h = np.identity(3, np.float32)
     base_img = images[0]
+    x_center = []
+    y_center = []
+    vector = []
     for i in range(1, len(images)):
         start_time = time.time()
         next_img = images[i]
@@ -176,18 +192,21 @@ if __name__ == "__main__":
         print("At iteration", i, "applied Sorted Matches")
         H = find_homography(kp_base_img, kp_next_img, sel_matches)
         if (i == 1):
-            final_img, neg = stitching(base_img, next_img, H)
+            final_img, neg, next_center = stitching(base_img, next_img, H, vector)
         else:
-            final_img, neg = stitching(final_img, next_img, H)
-
+            final_img, neg, next_center = stitching(final_img, next_img, H, vector)
         print("At iteration", i, "applied compute old homograhy")
         base_img = final_img
+
+        x_center.append(next_center[0, 2])
+        y_center.append(next_center[1, 2])
+        # print(x_center)
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
-
         print("done")
-
+    for i in range(0, len(x_center)):
+        cv2.circle(final_img, (int(x_center[i]), int(y_center[i])), 3 ,(255, 255, 0))
     cv2.imshow("next", final_img)
     print(final_img.shape)
     cv2.imwrite("img_save/sample_path_test_1.png", cv2.medianBlur(final_img, 3))
