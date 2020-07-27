@@ -6,7 +6,7 @@ import os
 import re
 import csv
 import time
-
+import matplotlib.pyplot as plt
 
 # Sort images based on number
 def atoi(text):
@@ -140,15 +140,20 @@ def stitching(full_img, next_img, H, vector):
     next_img_center_point = np.identity(3, np.float32)
     next_img_center_point[0, 2] = next_img.shape[1]/2
     next_img_center_point[1, 2] = next_img.shape[0]/2
-
-    next_img_center_point = np.matmul(mod_inv_h, next_img_center_point)
+    # print("Next image center point", next_img_center_point,"\n")
+    next_img_center_point = np.matmul(H_inv, next_img_center_point)
+    #print("Center point X:", next_img_center_point[0,2],"Y:", next_img_center_point[1,2], "\n")
 
     pts = np.array(next_img_center_point)
     vector.append(pts)
-    # Warp the new image given the homography from the old image
+    # Warp the new image given the homograph from the old image
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
-    for i in vector:
-        points_out = np.matmul(i, move_h)
+    for i in range(0, len(vector)):
+        vector[i] = np.dot(vector[i], move_h)
+        #print("Center point modded X:", vector[i][0][2], "Y:", vector[i][1][2], "\n")
+        # print(i)
+    #print("Move h value X:", move_h[0,2], "Y:", move_h[1,2], "\n")
+    #print(move_h)
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
     # Create a black image of max required dimensions
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
@@ -157,12 +162,12 @@ def stitching(full_img, next_img, H, vector):
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
+
     # Add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
     cv2.circle(next_img_warp, (int(next_img_center_point[0,2]), int(next_img_center_point[1,2])), 3, (255, 255, 0))
-    cv2.imshow("next", next_img_warp)
-    cv2.waitKey(20)
-    return final_img, next_img_warp,points_out
+
+    return final_img, next_img_warp,vector
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
@@ -184,30 +189,39 @@ if __name__ == "__main__":
         else:
             img1_GS = cv2.GaussianBlur(cv2.cvtColor(neg, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-        print("At iteration", i, "applied Gaussian blur")
+        # print("At iteration", i, "applied Gaussian blur")
         kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
         kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
-        print("At iteration", i, "applied computed descriptor")
+        # print("At iteration", i, "applied computed descriptor")
         sel_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
-        print("At iteration", i, "applied Sorted Matches")
+        # print("At iteration", i, "applied Sorted Matches")
         H = find_homography(kp_base_img, kp_next_img, sel_matches)
         if (i == 1):
             final_img, neg, next_center = stitching(base_img, next_img, H, vector)
         else:
             final_img, neg, next_center = stitching(final_img, next_img, H, vector)
-        print("At iteration", i, "applied compute old homograhy")
+        # print("At iteration", i, "applied compute old homograhy")
         base_img = final_img
 
-        x_center.append(next_center[0, 2])
-        y_center.append(next_center[1, 2])
         # print(x_center)
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
-        print("done")
-    for i in range(0, len(x_center)):
-        cv2.circle(final_img, (int(x_center[i]), int(y_center[i])), 3 ,(255, 255, 0))
+        # print("done")
+    # print(next_center[0][0][2])
+    final_img = cv2.medianBlur(final_img, 3)
+    for i in next_center:
+        cv2.circle(final_img, (int(i[0, 2]), int(i[1, 2])), 5,  (255, 255, 0), -1)
+    row_of_interest = []
+    with open('gps_xyz.csv', 'r') as file:
+        csv_reader = csv.reader(file, delimiter=',')
+        header = next(csv_reader)
+        for row in csv_reader:
+            row_of_interest.append(row)
+    for i in range (0, len(next_center)):
+        if i % 10 == 0:
+            print(row_of_interest[i])
+            cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]), (int(next_center[i][0][2] +10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5 ,(255, 255, 0) )
     cv2.imshow("next", final_img)
-    print(final_img.shape)
-    cv2.imwrite("img_save/sample_path_test_1.png", cv2.medianBlur(final_img, 3))
+    cv2.imwrite("img_save/sample_path_test_1.png", final_img)
     cv2.waitKey()
