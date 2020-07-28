@@ -150,13 +150,20 @@ def stitching(full_img, next_img, H, vector):
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     for i in range(0, len(vector)):
         vector[i] = np.dot(vector[i], move_h)
-        #print("Center point modded X:", vector[i][0][2], "Y:", vector[i][1][2], "\n")
-        # print(i)
-    #print("Move h value X:", move_h[0,2], "Y:", move_h[1,2], "\n")
-    #print(move_h)
-    next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
-    # Create a black image of max required dimensions
+
+    last_img_x_center = int(vector[-1][0][2])
+    last_img_y_center = int(vector[-1][1][2])
+    offset_value = 50
+    edge_1 = np.array([[last_img_x_center - int(next_img.shape[0]/2) - offset_value, last_img_y_center - int(next_img.shape[1]/2) - offset_value]])
+    edge_2 = np.array([[last_img_x_center + int(next_img.shape[0] / 2) + offset_value, last_img_y_center - int(next_img.shape[1] / 2) - offset_value]])
+    edge_3 = np.array([[last_img_x_center + int(next_img.shape[0] / 2) + offset_value, last_img_y_center + int(next_img.shape[1] / 2) + offset_value]])
+    edge_4 = np.array([[last_img_x_center - int(next_img.shape[0] / 2) - offset_value, last_img_y_center + int(next_img.shape[1] / 2) + offset_value]])
+
+    edges = np.array([edge_1, edge_2, edge_3, edge_4])
+
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
+    next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
+
 
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
@@ -165,9 +172,15 @@ def stitching(full_img, next_img, H, vector):
 
     # Add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
-    cv2.circle(next_img_warp, (int(next_img_center_point[0,2]), int(next_img_center_point[1,2])), 3, (255, 255, 0))
 
-    return final_img, next_img_warp,vector
+    mask_1 = np.zeros(full_img_warp.shape, dtype=np.uint8)
+    cv2.fillPoly(mask_1, pts=[edges], color=(255, 255, 255))
+    maksed_image = cv2.bitwise_and(full_img_warp, mask_1)
+    # cv2.imshow("tyr",cv2.add(cv2.resize(maksed_image, (640,480)), cv2.resize(next_img_warp, (640,480))))
+    # cv2.waitKey(20)
+
+
+    return final_img, maksed_image,vector
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
@@ -177,9 +190,12 @@ if __name__ == "__main__":
     images = load_images_from_folder("sample_folder")
     move_h = np.identity(3, np.float32)
     base_img = images[0]
-    x_center = []
-    y_center = []
+    base_img_center_point = np.identity(3, np.float32)
+    base_img_center_point[0, 2] = base_img.shape[1] / 2
+    base_img_center_point[1, 2] = base_img.shape[0] / 2
+    base_pts = np.array(base_img_center_point)
     vector = []
+    vector.append(base_pts)
     for i in range(1, len(images)):
         start_time = time.time()
         next_img = images[i]
@@ -201,15 +217,15 @@ if __name__ == "__main__":
         else:
             final_img, neg, next_center = stitching(final_img, next_img, H, vector)
         # print("At iteration", i, "applied compute old homograhy")
+        cv2.imshow("output", neg)
+        cv2.waitKey(20)
         base_img = final_img
 
-        # print(x_center)
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
-        # print("done")
-    # print(next_center[0][0][2])
-    final_img = cv2.medianBlur(final_img, 3)
+        print("iteration number ", i, " completed")
+    # final_img = cv2.medianBlur(final_img, 3)
     for i in next_center:
         cv2.circle(final_img, (int(i[0, 2]), int(i[1, 2])), 5,  (255, 255, 0), -1)
     row_of_interest = []
@@ -219,7 +235,7 @@ if __name__ == "__main__":
         for row in csv_reader:
             row_of_interest.append(row)
     for i in range (0, len(next_center)):
-        if i % 10 == 0:
+        if i % 5 == 0:
             print(row_of_interest[i])
             cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]), (int(next_center[i][0][2] +10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5 ,(255, 255, 0) )
     cv2.imshow("next", final_img)

@@ -90,4 +90,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     #x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 100), 600, map)
+    smart_sampler(gen_coll_elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 600, 5), 500, map)
