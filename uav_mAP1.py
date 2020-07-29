@@ -110,7 +110,7 @@ def find_homography(kp_base_img, kp_next_img, sel_matches):
         return H
 
 
-def stitching(full_img, next_img, H, vector):
+def stitching(full_img, next_img, H, vector, offset_value):
     # Normalize to maintaining homogeneous coordinate system
     H = H / H[2, 2]
     # Inverse matrix
@@ -153,7 +153,7 @@ def stitching(full_img, next_img, H, vector):
 
     last_img_x_center = int(vector[-1][0][2])
     last_img_y_center = int(vector[-1][1][2])
-    offset_value = 50
+
     edge_1 = np.array([[last_img_x_center - int(next_img.shape[0]/2) - offset_value, last_img_y_center - int(next_img.shape[1]/2) - offset_value]])
     edge_2 = np.array([[last_img_x_center + int(next_img.shape[0] / 2) + offset_value, last_img_y_center - int(next_img.shape[1] / 2) - offset_value]])
     edge_3 = np.array([[last_img_x_center + int(next_img.shape[0] / 2) + offset_value, last_img_y_center + int(next_img.shape[1] / 2) + offset_value]])
@@ -173,10 +173,11 @@ def stitching(full_img, next_img, H, vector):
     # Add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
 
-    mask_1 = np.zeros(full_img_warp.shape, dtype=np.uint8)
+    mask_1 = np.zeros(final_img.shape, dtype=np.uint8)
     cv2.fillPoly(mask_1, pts=[edges], color=(255, 255, 255))
-    maksed_image = cv2.bitwise_and(full_img_warp, mask_1)
-    # cv2.imshow("tyr",cv2.add(cv2.resize(maksed_image, (640,480)), cv2.resize(next_img_warp, (640,480))))
+    maksed_image = cv2.bitwise_and(final_img, mask_1)
+    # cv2.imshow("tyr",cv2.resize(maksed_image, (640,480)))
+    # cv2.imshow("12", cv2.resize(next_img_warp, (640, 480)))
     # cv2.waitKey(20)
 
 
@@ -194,6 +195,7 @@ if __name__ == "__main__":
     base_img_center_point[0, 2] = base_img.shape[1] / 2
     base_img_center_point[1, 2] = base_img.shape[0] / 2
     base_pts = np.array(base_img_center_point)
+    offset_value = 150
     vector = []
     vector.append(base_pts)
     for i in range(1, len(images)):
@@ -203,8 +205,8 @@ if __name__ == "__main__":
             img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
         else:
-            img1_GS = cv2.GaussianBlur(cv2.cvtColor(neg, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-            img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+            img1_GS = cv2.cvtColor(neg, cv2.COLOR_BGR2GRAY)
+            img2_GS = cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY)
         # print("At iteration", i, "applied Gaussian blur")
         kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
         kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
@@ -213,19 +215,19 @@ if __name__ == "__main__":
         # print("At iteration", i, "applied Sorted Matches")
         H = find_homography(kp_base_img, kp_next_img, sel_matches)
         if (i == 1):
-            final_img, neg, next_center = stitching(base_img, next_img, H, vector)
+            final_img, neg, next_center = stitching(base_img, next_img, H, vector, offset_value)
         else:
-            final_img, neg, next_center = stitching(final_img, next_img, H, vector)
+            final_img, neg, next_center = stitching(final_img, next_img, H, vector, offset_value)
         # print("At iteration", i, "applied compute old homograhy")
-        cv2.imshow("output", neg)
-        cv2.waitKey(20)
+        #cv2.imshow("output", final_img)
+        #cv2.waitKey(20)
         base_img = final_img
 
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
         print("iteration number ", i, " completed")
-    # final_img = cv2.medianBlur(final_img, 3)
+    final_img = cv2.medianBlur(final_img, 3)
     for i in next_center:
         cv2.circle(final_img, (int(i[0, 2]), int(i[1, 2])), 5,  (255, 255, 0), -1)
     row_of_interest = []
@@ -239,5 +241,6 @@ if __name__ == "__main__":
             print(row_of_interest[i])
             cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]), (int(next_center[i][0][2] +10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5 ,(255, 255, 0) )
     cv2.imshow("next", final_img)
-    cv2.imwrite("img_save/sample_path_test_1.png", final_img)
+    save_file_name = "img_save/Test1_Pix" + str(images[0].shape[0]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) +".png"
+    cv2.imwrite(save_file_name, final_img)
     cv2.waitKey()

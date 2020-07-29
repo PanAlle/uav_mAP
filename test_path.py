@@ -16,7 +16,7 @@ def clear_folder(folder_path):
     print("Folder cleared")
 
 
-def gen_lin_path(img_path, sample):
+def gen_lin_path(img_path, sample, pixel, flag):
     map = cv2.imread(img_path)
     # Define starting point
     x_0 = random.uniform(0, 1) * map.shape[1]
@@ -33,7 +33,17 @@ def gen_lin_path(img_path, sample):
     for i in range(1, sample+1):
         x.append((int(start[0] + (x_d * i)/sample)))
         y.append((int(start[1] + (y_d * i) / sample)))
+    if flag == -1:
+        start[0] += pixel/2
+        finish[0] += pixel/2
+        x_d = finish[0] - start[0]
+        y_d = finish[1] - start[1]
+        for i in range(1, sample+1):
+            x.append((int(finish[0] - (x_d * i)/sample)))
+            y.append((int(finish[1] - (y_d * i) / sample)))
     pt = np.array((x, y))
+    plt.scatter(x,y)
+    plt.show()
     return pt
 
 
@@ -90,4 +100,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     #x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_coll_elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 600, 5), 500, map)
+    smart_sampler(gen_lin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 20, 500, -1), 500, map)
