@@ -147,7 +147,6 @@ def stitching(full_img, next_img, H, vector, offset_value):
     pts = np.array(next_img_center_point)
     vector.append(pts)
     # Warp the new image given the homograph from the old image
-    full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     for i in range(0, len(vector)):
         vector[i] = np.dot(vector[i], move_h)
 
@@ -161,27 +160,29 @@ def stitching(full_img, next_img, H, vector, offset_value):
 
     edges = np.array([edge_1, edge_2, edge_3, edge_4])
 
-    enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
+    full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
+    enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
 
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
-
-    # Add the warped image with 8bit/pixel (0 - 255)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
 
+    # Add the warped image with 8bit/pixel (0 - 255)
     mask_1 = np.zeros(final_img.shape, dtype=np.uint8)
     cv2.fillPoly(mask_1, pts=[edges], color=(255, 255, 255))
-    maksed_image = cv2.bitwise_and(final_img, mask_1)
+    #maksed_image = cv2.bitwise_and(final_img, mask_1)
+    cv2.imshow("12", final_img)
+    cv2.waitKey(20)
     # cv2.imshow("tyr",cv2.resize(maksed_image, (640,480)))
     # cv2.imshow("12", cv2.resize(next_img_warp, (640, 480)))
     # cv2.waitKey(20)
 
 
-    return final_img, maksed_image,vector
+    return final_img, next_img_warp,vector
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
