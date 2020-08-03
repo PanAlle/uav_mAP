@@ -73,15 +73,17 @@ def gen_coll_elliptical_path(img_path, sample, rotation):
     plt.show()
     return pt
 
-def smart_sampler(pt, pixel, map):
+def smart_sampler(pt, pixel_x, pixel_y, scale, map):
     x = pt[0]
     y = pt[1]
     for i in range(0, len(x)):
-        x[i] = max(x[i], pixel / 2)
+        x[i] = max(x[i], pixel_x / 2)
     counter = 0
     for i in range(0, len(x)):
-        sample = map[int(y[i] - pixel / 2):int(y[i] + pixel / 2), int(x[i] - pixel / 2): int(x[i] + pixel / 2)]
-        if sample.shape == (pixel, pixel, 3) and cv2.countNonZero(cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)) != 0:
+        scale_factor = random.uniform(1 - scale, 1 + scale)
+        sample = map[int(y[i] - (pixel_y * scale_factor) / 2):int(y[i] + (pixel_y * scale_factor) / 2), int(x[i] - (pixel_x * scale_factor) / 2): int(x[i] + (pixel_x * scale_factor) / 2)]
+        sample = cv2.resize(sample, (640, 480))
+        if sample.shape == (pixel_y, pixel_x, 3) and cv2.countNonZero(cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)) != 0:
             counter += 1
             filename = "sample_folder/sample_number" + str(counter) + ".png"
             gps_coordinates(filename, x[i], y[i])
@@ -100,4 +102,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     #x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_lin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 20, 500, -1), 500, map)
+    smart_sampler(gen_elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 120), 640, 480, 0.8, map)

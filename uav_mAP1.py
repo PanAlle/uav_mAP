@@ -174,15 +174,14 @@ def stitching(full_img, next_img, H, vector, offset_value):
     # Add the warped image with 8bit/pixel (0 - 255)
     mask_1 = np.zeros(final_img.shape, dtype=np.uint8)
     cv2.fillPoly(mask_1, pts=[edges], color=(255, 255, 255))
-    #maksed_image = cv2.bitwise_and(final_img, mask_1)
-    cv2.imshow("12", final_img)
-    cv2.waitKey(20)
+    maksed_image = cv2.bitwise_and(final_img, mask_1)
+
     # cv2.imshow("tyr",cv2.resize(maksed_image, (640,480)))
-    # cv2.imshow("12", cv2.resize(next_img_warp, (640, 480)))
-    # cv2.waitKey(20)
+    cv2.imshow("12", maksed_image)
+    cv2.waitKey(20)
 
 
-    return final_img, next_img_warp,vector
+    return final_img, maksed_image,vector
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
