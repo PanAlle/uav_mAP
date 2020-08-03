@@ -12,9 +12,6 @@ import matplotlib.pyplot as plt
 def atoi(text):
     return int(text) if text.isdigit() else text
 
-def natural_keys(text):
-    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
-
 def load_images_from_folder(folder):
     images = []
     sorted_list = []
@@ -76,7 +73,6 @@ def findDimensions(image, H_inv):
     min_x = min(0, min_x)
     min_y = min(0, min_y)
     return (min_x, min_y, max_x, max_y)
-
 
 def features_detection(img):
     descriptor = cv2.xfeatures2d.SURF_create()
@@ -179,6 +175,36 @@ def stitching(full_img, next_img, H, vector, offset_value):
 
 
     return final_img, maksed_image,vector
+
+
+def natural_keys(text):
+    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
