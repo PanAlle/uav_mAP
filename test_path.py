@@ -58,7 +58,7 @@ def gen_elliptical_path(img_path, sample):
         z.append(0.02*math.sin(math.radians(8*theta)))
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(x, y, z, c='r', marker='o')
+    ax.plot(x, y, z, c='r', marker='o')
     plt.show()
     pt = np.array((x, y, z))
     return pt
