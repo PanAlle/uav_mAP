@@ -177,35 +177,6 @@ def stitching(full_img, next_img, H, vector, offset_value):
     return final_img, maksed_image,vector
 
 
-def natural_keys(text):
-    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
     with open('csv_plots.csv', 'w', newline='') as file:
         writer = csv.writer(file)
@@ -264,3 +235,7 @@ if __name__ == "__main__":
     save_file_name = "img_save/Test1_Pix" + str(images[0].shape[0]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) +".png"
     cv2.imwrite(save_file_name, final_img)
     cv2.waitKey()
+
+
+def natural_keys(text):
+    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
