@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 def atoi(text):
     return int(text) if text.isdigit() else text
 
+def natural_keys(text):
+    return [atoi(c) for c in re.split(r"(\d+)", text)]
+
 def load_images_from_folder(folder):
     images = []
     sorted_list = []
@@ -237,5 +240,4 @@ if __name__ == "__main__":
     cv2.waitKey()
 
 
-def natural_keys(text):
-    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
+
