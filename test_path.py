@@ -4,8 +4,14 @@ import random
 import math
 import os
 import glob
-import matplotlib.pyplot as plt
+
 import csv
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.cbook import get_sample_data
+from matplotlib._png import read_png
+
+
 
 
 
@@ -16,34 +22,31 @@ def clear_folder(folder_path):
     print("Folder cleared")
 
 
-def gen_lin_path(img_path, sample, pixel, flag):
+def gen_lin_path(img_path, sample):
     map = cv2.imread(img_path)
     # Define starting point
-    x_0 = random.uniform(0, 1) * map.shape[1]
-    y_0 = random.uniform(0, 0.3) * map.shape[0]
+    x_0 = 0.1 * map.shape[1]
+    y_0 = 0.1 * map.shape[0]
     start = np.array([x_0, y_0], dtype=np.int32)
     # Define end point
-    x_f = random.uniform(0.7, 0.9) * map.shape[1]
-    y_f = random.uniform(0.7, 0.9) * map.shape[0]
+    x_f = np.random.uniform(0.7, 0.9) * map.shape[1]
+    y_f = np.random.uniform(0.7, 0.9) * map.shape[0]
     finish = np.array([x_f, y_f], dtype=np.int32)
     x_d = finish[0] - start[0]
     y_d = finish[1] - start[1]
     x = []
     y = []
+    z = []
     for i in range(1, sample+1):
         x.append((int(start[0] + (x_d * i)/sample)))
         y.append((int(start[1] + (y_d * i) / sample)))
-    if flag == -1:
-        start[0] += pixel/2
-        finish[0] += pixel/2
-        x_d = finish[0] - start[0]
-        y_d = finish[1] - start[1]
-        for i in range(1, sample+1):
-            x.append((int(finish[0] - (x_d * i)/sample)))
-            y.append((int(finish[1] - (y_d * i) / sample)))
-    pt = np.array((x, y))
-    plt.scatter(x,y)
+        z.append(0.5* math.sin(math.radians(20 * i)))
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot(x, y, z, c='r', marker='o')
     plt.show()
+    pt = np.array((x, y, z))
     return pt
 
 
@@ -55,10 +58,12 @@ def gen_elliptical_path(img_path, sample):
     for theta in range(0, 360, int(360/sample)):
         x.append((int(0.5 * map.shape[1] / 2 * math.cos(math.radians(theta))) + map.shape[1] / 2))
         y.append((int(0.5 * map.shape[0] / 2 * math.sin(math.radians(theta))) + map.shape[0] / 2))
-        z.append(0.02*math.sin(math.radians(8*theta)))
+        z.append(0.1*math.sin(math.radians(8*theta)))
     fig = plt.figure()
+    img = plt.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     ax = fig.add_subplot(111, projection='3d')
     ax.plot(x, y, z, c='r', marker='o')
+    ax.imshow(img, zorder=0, aspect='auto')
     plt.show()
     pt = np.array((x, y, z))
     return pt
@@ -109,4 +114,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     #x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 100), 640, 480, map)
+    smart_sampler(gen_lin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 40), 640, 480, map)

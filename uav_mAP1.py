@@ -6,7 +6,6 @@ import os
 import re
 import csv
 import time
-import matplotlib.pyplot as plt
 
 # Sort images based on number
 def atoi(text):
@@ -21,6 +20,7 @@ def load_images_from_folder(folder):
     for filename in os.listdir(folder):
         sorted_list.append(filename)
     sorted_list.sort(key=natural_keys)
+    sorted_list.reverse()
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
         #img = img[:][230:1750]
@@ -53,11 +53,11 @@ def findDimensions(image, H_inv):
     min_y = None
 
     # For each one of the points we need to apply the inverse Homography matrix in order to transform the points of the next image to the base frame
+    print("H_inv" + str(H_inv))
     for pt in [base_p1, base_p2, base_p3, base_p4]:
 
         # Transform next_image corners into the base space
         hp = np.matmul(np.array(H_inv, np.float32), np.array(pt, np.float32).reshape(-1,1))
-
         # Normalize the coordinates, by defining the correct point the output is a line vector
         normal_pt = np.array([hp[0, 0] / hp[2, 0], hp[1, 0] / hp[2, 0]], np.float32)
         # In order to define a rectangular hull containing the image, keep only min and max values of x,y
@@ -120,7 +120,7 @@ def stitching(full_img, next_img, H, vector, offset_value):
     max_x = max(max_x, full_img.shape[1])
     max_y = max(max_y, full_img.shape[0])
     # Define the move vector for each pixel
-    move_h = np.identity(3, np.float32)
+    move_h = np.identity(3, np.float64)
     # Translate the origin of the image in the positive part of the plane, in order to see it
     if (min_x < 0):
         move_h[0, 2] += -min_x
@@ -137,11 +137,11 @@ def stitching(full_img, next_img, H, vector, offset_value):
     img_h = int(math.ceil(max_y))
 
     next_img_center_point = np.identity(3, np.float32)
-    next_img_center_point[0, 2] = next_img.shape[1]/2
-    next_img_center_point[1, 2] = next_img.shape[0]/2
+    next_img_center_point[0, 2] = (next_img.shape[1]/2) * math.sqrt(H[0,0]**2 + H[1,0]**2)
+    next_img_center_point[1, 2] = (next_img.shape[0]/2) * np.linalg.det(H[:2, :2])/math.sqrt(H[0, 0] ** 2 + H[1, 0] ** 2)
     # print("Next image center point", next_img_center_point,"\n")
     next_img_center_point = np.matmul(H_inv, next_img_center_point)
-    #print("Center point X:", next_img_center_point[0,2],"Y:", next_img_center_point[1,2], "\n")
+    print("Center point X:", next_img_center_point[0,2],"Y:", next_img_center_point[1,2], "\n")
 
     pts = np.array(next_img_center_point)
     vector.append(pts)
@@ -158,7 +158,10 @@ def stitching(full_img, next_img, H, vector, offset_value):
     edge_4 = np.array([[last_img_x_center - int(next_img.shape[1] / 2) - offset_value, last_img_y_center + int(next_img.shape[0] / 2) + offset_value]])
 
     edges = np.array([edge_1, edge_2, edge_3, edge_4])
+    print(move_h)
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
+    cv2.imshow("full_image_warp", full_img_warp)
+    cv2.waitKey(30)
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
@@ -174,7 +177,8 @@ def stitching(full_img, next_img, H, vector, offset_value):
     cv2.fillPoly(mask_1, pts=[edges], color=(255, 255, 255))
     maksed_image = cv2.bitwise_and(final_img, mask_1)
 
-    cv2.imshow("tyr",cv2.resize(maksed_image, (640,480)))
+    #cv2.imshow("tyr",cv2.resize(maksed_image, (640,480)))
+    #cv2.waitKey(20)
 
 
     return final_img, maksed_image,vector
@@ -207,21 +211,19 @@ if __name__ == "__main__":
         sel_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
         H = find_homography(kp_base_img, kp_next_img, sel_matches)
         print("Current homography matrix scale introduced on X: " + str(100*(math.sqrt(H[0,0]**2 + H[1,0]**2) - 1)) + " Y:" + str(100 * ((np.linalg.det(H[:2, :2])/math.sqrt(H[0, 0] ** 2 + H[1, 0] ** 2) -1))) + "\n")
-        # print(H)
         if i == 1:
             final_img, neg, next_center = stitching(base_img, next_img, H, vector, offset_value)
         else:
             final_img, neg, next_center = stitching(final_img, next_img, H, vector, offset_value)
-        # print("At iteration", i, "applied compute old homograhy")
-        #cv2.imshow("output", final_img)
-        #cv2.waitKey(20)
+
+        # print(next_center[1])
         base_img = final_img
 
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
         print("iteration number ", i, " completed")
-    # final_img = cv2.medianBlur(final_img, 3)
+    final_img = cv2.medianBlur(final_img, 3)
     for i in next_center:
         cv2.circle(final_img, (int(i[0, 2]), int(i[1, 2])), 5,  (255, 255, 0), -1)
     row_of_interest = []
