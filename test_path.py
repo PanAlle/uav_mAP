@@ -40,12 +40,24 @@ def gen_lin_path(img_path, sample):
     for i in range(1, sample+1):
         x.append((int(start[0] + (x_d * i)/sample)))
         y.append((int(start[1] + (y_d * i) / sample)))
-        z.append(0.5* math.sin(math.radians(20 * i)))
+        z.append(0.3 * math.sin(math.radians(20 * i)))
 
+    # Plot the map on the 3d graph
+    # =============================
+    xx, yy = np.meshgrid(np.linspace(0, map.shape[1], map.shape[1]), np.linspace(0, map.shape[0], map.shape[0]))
+    X = xx
+    Y = yy
+    Z = min(z) * np.ones(X.shape)-2
+    # create the figure
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot(x, y, z, c='r', marker='o')
+    # show the 3D rotated projection
+    ax2 = fig.add_subplot(111, projection='3d')
+    ax2.plot_surface(X, Y, Z, rstride=10, cstride=10, facecolors=map / 255, shade=False)
+    # =============================
+    ax2.plot(x, y, z, c='r', marker='o')
+    ax2.scatter(x[0], y[0], z[0], s=40, c='b', marker='o')
     plt.show()
+
     pt = np.array((x, y, z))
     return pt
 
@@ -114,4 +126,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     #x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_lin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 40), 640, 480, map)
+    smart_sampler(gen_lin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 50), 640, 480, map)
