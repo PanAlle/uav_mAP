@@ -105,7 +105,7 @@ def smart_sampler(pt, pixel_x, pixel_y, map):
         scale_factor = 1 + z[i]
         pixel_scale_x = int(pixel_x * scale_factor)
         pixel_scale_y = int(pixel_y * scale_factor)
-        sample = map[int(y[i] - (pixel_scale_y) / 2):int(y[i] + (pixel_scale_y) / 2), int(x[i] - (pixel_scale_x) / 2): int(x[i] + (pixel_scale_x) / 2)]
+        sample = map[int(y[i] - pixel_scale_y / 2):int(y[i] + pixel_scale_y / 2), int(x[i] - pixel_scale_x / 2): int(x[i] + pixel_scale_x / 2)]
         if sample.shape == (pixel_scale_y, pixel_scale_x, 3) and cv2.countNonZero(cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)) != 0:
             sample = cv2.resize(sample, (pixel_x, pixel_y))
             counter += 1
