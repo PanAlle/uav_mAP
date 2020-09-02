@@ -74,9 +74,9 @@ def findDimensions(image, H_inv, H):
     return (min_x, min_y, max_x, max_y)
 
 def features_detection(img):
-    descriptor = cv2.xfeatures2d.SURF_create(10)
+    descriptor = cv2.xfeatures2d.SURF_create()
     # Compute keypoint and relative descriptor, None mask applied to the images
-    kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None, 10)
+    kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None)
     return kp_pt, kp_descriptor
 
 def features_detection_next(img, mask_1):
@@ -85,13 +85,13 @@ def features_detection_next(img, mask_1):
     # ret, mask = cv2.threshold(mask_1, 0, 255, cv2.THRESH_BINARY)
     mask = cv2.cvtColor(mask_1, cv2.COLOR_BGR2GRAY)
     # cv2.imshow("full_image_warp", cv2.resize(cv2.bitwise_and(img, mask), (640,480)))
-    print(mask.shape)
+    # print(mask.shape)
     kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None)
     img = cv2.drawKeypoints(img, kp_pt, None)
-    cv2.imshow("full_image_warp", cv2.resize(img, (960, 1280)))
-    cv2.waitKey(30)
-    cv2.imshow("mask", cv2.resize(mask, (960, 1280)))
-    cv2.waitKey(30)
+    # cv2.imshow("full_image_warp", cv2.resize(img, (960, 1280)))
+    # cv2.waitKey(30)
+    # cv2.imshow("mask", cv2.resize(mask, (960, 1280)))
+    # cv2.waitKey(30)
     return kp_pt, kp_descriptor
 
 def feature_matching(base_img_descriptor, next_img_descriptor):
@@ -107,7 +107,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
     # Initialize an array to store selceted matches based on Lowe's ratio
     sel_matches = []
     for m, n in matches:
-        if m.distance < 0.7 * n.distance:
+        if m.distance < 0.6 * n.distance:
             sel_matches.append(m)
     return sel_matches
 
@@ -175,9 +175,9 @@ def stitching(full_img, next_img, H, vector, offset_value):
 
     # print("Center point X:", last_img_x_center,"Y:", last_img_y_center, "\n")
     # print("Inverse homography:", H_inv, "\n")
-    print("Move vector:", move_h, "\n")
-
-    print("Center point X:", last_img_x_center, "Y:", last_img_y_center, "\n")
+    # print("Move vector:", move_h, "\n")
+    #
+    # print("Center point X:", last_img_x_center, "Y:", last_img_y_center, "\n")
     edge_1 = np.array([[last_img_x_center - int(next_img.shape[1] / 2) - offset_value, last_img_y_center - int(next_img.shape[0] / 2) - offset_value]])
     edge_2 = np.array([[last_img_x_center + int(next_img.shape[1] / 2) + offset_value, last_img_y_center - int(next_img.shape[0] / 2) - offset_value]])
     edge_3 = np.array([[last_img_x_center + int(next_img.shape[1] / 2) + offset_value, last_img_y_center + int(next_img.shape[0] / 2) + offset_value]])
@@ -195,11 +195,11 @@ def stitching(full_img, next_img, H, vector, offset_value):
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
     enlarged_full_img = cv2.add(enlarged_base_img, full_img, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
-    cv2.imshow("mask_1", cv2.resize(enlarged_full_img, (640,480)))
-    cv2.waitKey(30)
+    # cv2.imshow("mask_1", cv2.resize(enlarged_full_img, (640,480)))
+    # cv2.waitKey(30)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
-    cv2.imshow("next_img", cv2.resize(full_img, (640,480)))
-    cv2.waitKey(30)
+    # cv2.imshow("next_img", cv2.resize(full_img, (640,480)))
+    # cv2.waitKey(30)
 
     # Add the warped image with 8bit/pixel (0 - 255)
     mask_1 = np.zeros(final_img.shape, dtype=np.uint8)
@@ -215,7 +215,8 @@ if __name__ == "__main__":
         writer.writerow(["SURF_kp full_img", "SURF_kp next_img", "number of good matches"])
     images = load_images_from_folder("sample_folder")
     base_img = images[0]
-    huge_image = np.zeros((int(0.2 * images[0].shape[0]*len(images)), int(0.2 * images[0].shape[1]*len(images)), 3), np.uint8)
+    # huge_image = np.zeros((int(0.25 * images[0].shape[0]*len(images)), int(0.25* images[0].shape[1]*len(images)), 3), np.uint8)
+    huge_image = np.zeros((10000,10000, 3), np.uint8)
     huge_image[int(huge_image.shape[0]/2 - base_img.shape[0]/2): int(huge_image.shape[0]/2 - base_img.shape[0]/2) + base_img.shape[0], int(huge_image.shape[1]/2 - base_img.shape[1]/2): int(huge_image.shape[1]/2 - base_img.shape[1]/2) + base_img.shape[1]] = base_img
     base_img = huge_image
     base_img_center_point = np.identity(3, np.float32)
@@ -223,7 +224,7 @@ if __name__ == "__main__":
     base_img_center_point[1, 2] = huge_image.shape[0] / 2
     base_pts = np.array(base_img_center_point)
     print(base_pts)
-    offset_value = 200
+    offset_value = 500
     vector = [base_pts]
     for i in range(1, len(images)):
         start_time = time.time()
@@ -250,7 +251,7 @@ if __name__ == "__main__":
         else:
             img1_GS = cv2.GaussianBlur(cv2.cvtColor(neg, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-            kp_base_img, kp_descriptor_base_img = features_detection_next(img1_GS, mask_1)
+            kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
             kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
 
         sel_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
@@ -262,7 +263,8 @@ if __name__ == "__main__":
             final_img, neg, next_center, mask_1 = stitching(final_img, next_img, H, vector, offset_value)
 
         base_img = final_img
-
+        cv2.imshow("next_img", cv2.resize(final_img, (640,480)))
+        cv2.waitKey(30)
         with open('csv_plots.csv', 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerow([len(kp_base_img), len(kp_next_img), len(sel_matches), (time.time() - start_time)])
@@ -283,10 +285,10 @@ if __name__ == "__main__":
         if i % 5 == 0:
             # print(row_of_interest[i])
             cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]), (int(next_center[i][0][2] +10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5 ,(255, 255, 0) )
-    cv2.imshow("next", final_img)
-    save_file_name = "img_save/Linear_sine_zoom_test/REVREV_Test1_Pix" + str(images[0].shape[0]) + "X" + str(images[0].shape[1]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) +".png"
+    # cv2.imshow("next", final_img)
+    save_file_name = "img_save/Enlarged_frame/Test1_Pix" + str(images[0].shape[0]) + "X" + str(images[0].shape[1]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) +".png"
     cv2.imwrite(save_file_name, final_img)
-    cv2.waitKey()
+    # cv2.waitKey()
 
 
 

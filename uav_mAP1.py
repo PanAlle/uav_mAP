@@ -20,7 +20,7 @@ def load_images_from_folder(folder):
     for filename in os.listdir(folder):
         sorted_list.append(filename)
     sorted_list.sort(key=natural_keys)
-    sorted_list.reverse()
+    # sorted_list.reverse()
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder,filename))
         if img is not None:
@@ -122,8 +122,7 @@ def find_homography(kp_base_img, kp_next_img, sel_matches):
 def stitching(full_img, next_img, H, vector, offset_value):
     # Normalize to maintaining homogeneous coordinate system
     H = H / H[2, 2]
-    # H[2, 0] = 0
-    # H[2, 1] = 0
+
     print(H)
     # Inverse homography, from the next image frame to the base image frame
     H_inv = linalg.inv(H)
@@ -178,9 +177,13 @@ def stitching(full_img, next_img, H, vector, offset_value):
     edge_4 = np.array([[last_img_x_center - int(next_img.shape[1] / 2) - offset_value, last_img_y_center + int(next_img.shape[0] / 2) + offset_value]])
 
     edges = np.array([edge_1, edge_2, edge_3, edge_4])
-    # print(move_h)
+    print(move_h)
     # print(H)
+    cv2.imshow("full_imag", cv2.resize(full_img, (640,480)))
+    cv2.waitKey(30)
     full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
+    cv2.imshow("full_image_warp", cv2.resize(full_img_warp, (640,480)))
+    cv2.waitKey(30)
     next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
@@ -188,17 +191,13 @@ def stitching(full_img, next_img, H, vector, offset_value):
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
     (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
-    enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
+    enlarged_full_img = cv2.add(enlarged_base_img, full_img_warp, mask=np.bitwise_not(data_map), dtype=cv2.CV_8U)
     final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
 
     # Add the warped image with 8bit/pixel (0 - 255)
     mask_1 = np.zeros(final_img.shape, dtype=np.uint8)
     cv2.fillPoly(mask_1, pts=[edges], color=(255, 255, 255))
     maksed_image = cv2.bitwise_and(final_img, mask_1)
-    cv2.imshow("full_image_warp", cv2.resize(maksed_image, (640,480)))
-    cv2.waitKey(30)
-    cv2.imshow("full_imag", cv2.resize(final_img, (640,480)))
-    cv2.waitKey(30)
 
     return final_img, maksed_image, vector, mask_1
 
@@ -217,7 +216,7 @@ if __name__ == "__main__":
     base_img_center_point[0, 2] = base_img.shape[1] / 2
     base_img_center_point[1, 2] = base_img.shape[0] / 2
     base_pts = np.array(base_img_center_point)
-    offset_value = 20
+    offset_value = 100
     vector = [base_pts]
     for i in range(1, len(images)):
         start_time = time.time()
