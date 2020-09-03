@@ -79,19 +79,26 @@ def features_detection(img):
     kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None)
     return kp_pt, kp_descriptor
 
-def features_detection_next(img, mask_1):
+def features_detection_next(img, mask_1, next_img_warp):
     descriptor = cv2.xfeatures2d.SURF_create()
     # Compute keypoint and relative descriptor, None mask applied to the images
-    # ret, mask = cv2.threshold(mask_1, 0, 255, cv2.THRESH_BINARY)
-    mask = cv2.cvtColor(mask_1, cv2.COLOR_BGR2GRAY)
-    # cv2.imshow("full_image_warp", cv2.resize(cv2.bitwise_and(img, mask), (640,480)))
+    ret, mask = cv2.threshold(next_img_warp, 0, 255, cv2.THRESH_BINARY)
+    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    # img = np.zeros(img.shape, np.uint8)
+    # cv2.imshow("full_image_warp", cv2.resize(mask, (640*3,480*3)))
+    # cv2.waitKey(30)
+    # cv2.imshow("full_image_warp", cv2.resize(cv2.bitwise_and(next_img_warp, mask), (640*3,480*3)))
+    # cv2.waitKey(30)
     # print(mask.shape)
-    kp_pt, kp_descriptor = descriptor.detectAndCompute(img, None)
+    kp_pt, kp_descriptor = descriptor.detectAndCompute(img, mask)
     img = cv2.drawKeypoints(img, kp_pt, None)
     # cv2.imshow("full_image_warp", cv2.resize(img, (960, 1280)))
-    # cv2.waitKey(30)
     # cv2.imshow("mask", cv2.resize(mask, (960, 1280)))
     # cv2.waitKey(30)
+
+    save_file_name = "img_save/Enlarged_frame/Mask_test/Keypoints" + str(mask_1.shape[:2]) + ".png"
+    cv2.imwrite(save_file_name, img)
+
     return kp_pt, kp_descriptor
 
 def feature_matching(base_img_descriptor, next_img_descriptor):
@@ -187,17 +194,37 @@ def stitching(full_img, next_img, H, vector, offset_value):
     # print(move_h)
     # print(H)
     # full_img_warp = cv2.warpPerspective(full_img, move_h, (img_w, img_h))
-    next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
+    # next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
     enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
 
 
     # Create a mask from the warped image for constructing masked composite (insert black
     # base on next image, covering the first one)
-    (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
-    enlarged_full_img = cv2.add(enlarged_base_img, full_img, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
-    # cv2.imshow("mask_1", cv2.resize(enlarged_full_img, (640,480)))
-    # cv2.waitKey(30)
-    final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
+    # (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
+    try:
+        next_img_warp = cv2.warpPerspective(next_img, mod_inv_h, (img_w, img_h))
+        enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
+        (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
+        enlarged_full_img = cv2.add(enlarged_base_img, full_img, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
+        final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
+    except:
+
+        offset = 100
+        img_w += offset
+        img_h += offset
+
+        offset_H = np.identity(3, np.float32)
+        offset_H[0, 2] = offset / 2
+        offset_H[1, 2] = offset / 2
+
+        full_img = cv2.warpPerspective(full_img, offset_H, (img_w, img_h))
+        next_img_warp = cv2.warpPerspective(next_img, offset_H * mod_inv_h, (img_w, img_h))
+        enlarged_base_img = np.zeros((img_h, img_w, 3), np.uint8)
+        (ret, data_map) = cv2.threshold(cv2.cvtColor(next_img_warp, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_BINARY)
+        enlarged_full_img = cv2.add(enlarged_base_img, full_img, mask=np.bitwise_not(data_map),dtype=cv2.CV_8U)
+        final_img = cv2.add(enlarged_full_img, next_img_warp, dtype=cv2.CV_8U)
+    cv2.imshow("mask_1", cv2.resize(enlarged_base_img, (640,480)))
+    cv2.waitKey(30)
     # cv2.imshow("next_img", cv2.resize(full_img, (640,480)))
     # cv2.waitKey(30)
 
@@ -216,7 +243,7 @@ if __name__ == "__main__":
     images = load_images_from_folder("sample_folder")
     base_img = images[0]
     # huge_image = np.zeros((int(0.25 * images[0].shape[0]*len(images)), int(0.25* images[0].shape[1]*len(images)), 3), np.uint8)
-    huge_image = np.zeros((10000,10000, 3), np.uint8)
+    huge_image = np.zeros((1000,1000, 3), np.uint8)
     huge_image[int(huge_image.shape[0]/2 - base_img.shape[0]/2): int(huge_image.shape[0]/2 - base_img.shape[0]/2) + base_img.shape[0], int(huge_image.shape[1]/2 - base_img.shape[1]/2): int(huge_image.shape[1]/2 - base_img.shape[1]/2) + base_img.shape[1]] = base_img
     base_img = huge_image
     base_img_center_point = np.identity(3, np.float32)
@@ -224,7 +251,7 @@ if __name__ == "__main__":
     base_img_center_point[1, 2] = huge_image.shape[0] / 2
     base_pts = np.array(base_img_center_point)
     print(base_pts)
-    offset_value = 500
+    offset_value = 0
     vector = [base_pts]
     for i in range(1, len(images)):
         start_time = time.time()
@@ -246,21 +273,21 @@ if __name__ == "__main__":
 
             img1_GS = cv2.GaussianBlur(cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-            kp_base_img, kp_descriptor_base_img = features_detection_next(img1_GS, mask_1)
+            kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
             kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
         else:
-            img1_GS = cv2.GaussianBlur(cv2.cvtColor(neg, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+            img1_GS = cv2.GaussianBlur(cv2.cvtColor(final_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
-            kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
+            kp_base_img, kp_descriptor_base_img = features_detection_next(img1_GS, mask_2, neg)
             kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
 
         sel_matches = feature_matching(kp_descriptor_base_img, kp_descriptor_next_img)
         H = find_homography(kp_base_img, kp_next_img, sel_matches)
 
         if i == 1:
-            final_img, neg, next_center, mask_1 = stitching(base_img, next_img, H, vector, offset_value)
+            final_img, neg, next_center, mask_2 = stitching(base_img, next_img, H, vector, offset_value)
         else:
-            final_img, neg, next_center, mask_1 = stitching(final_img, next_img, H, vector, offset_value)
+            final_img, neg, next_center, mask_2 = stitching(final_img, next_img, H, vector, offset_value)
 
         base_img = final_img
         cv2.imshow("next_img", cv2.resize(final_img, (640,480)))
@@ -286,7 +313,7 @@ if __name__ == "__main__":
             # print(row_of_interest[i])
             cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]), (int(next_center[i][0][2] +10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5 ,(255, 255, 0) )
     # cv2.imshow("next", final_img)
-    save_file_name = "img_save/Enlarged_frame/Test1_Pix" + str(images[0].shape[0]) + "X" + str(images[0].shape[1]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) +".png"
+    save_file_name = "img_save/Enlarged_frame/Mask_test/Test1_with_mask_Pix" + str(images[0].shape[0]) + "X" + str(images[0].shape[1]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) +".png"
     cv2.imwrite(save_file_name, final_img)
     # cv2.waitKey()
 
