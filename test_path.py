@@ -29,7 +29,7 @@ def gen_sin_path(img_path, sample):
     for i in range(1, 2 * sample + 1):
         x.append(300 + 8 * i)
         y.append((int(map.shape[0] / 2 + (0.6 * map.shape[0] / 2) * math.sin(math.radians(9 * i)))))
-        z.append(0.3 * math.sin(math.radians(20 * i)))
+        z.append(0.2 * math.sin(math.radians(20 * i)))
     pt = np.array((x, y, z))
     return pt
 
@@ -153,4 +153,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     # x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_sin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 100), 640, 480, 5, map)
+    smart_sampler(gen_sin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 20), 640, 480, 5, map)
