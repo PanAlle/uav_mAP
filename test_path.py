@@ -27,9 +27,9 @@ def gen_sin_path(img_path, sample):
     y = []
     z = []
     for i in range(1, 2 * sample + 1):
-        x.append(300 + 8 * i)
+        x.append(300 + map.shape[1]*i / (2 * sample + 1))
         y.append((int(map.shape[0] / 2 + (0.6 * map.shape[0] / 2) * math.sin(math.radians(7 * i)))))
-        z.append(0 * math.sin(math.radians(20 * i)))
+        z.append(0.2 * math.sin(math.radians(20 * i)))
     pt = np.array((x, y, z))
     return pt
 
@@ -82,7 +82,7 @@ def gen_coll_elliptical_path(img_path, sample, rotation):
     return pt
 
 
-def smart_sampler(pt, pixel_x, pixel_y, max_rot_angle, map):
+def smart_sampler(pt, pixel_x, pixel_y, map):
     x = pt[0]
     y = pt[1]
     z = pt[2]
@@ -125,7 +125,7 @@ def smart_sampler(pt, pixel_x, pixel_y, max_rot_angle, map):
     # show the 3D rotated projection
     ax2 = fig.add_subplot(111, projection='3d')
     ax2.text2D(0.05, 0.95, "Medium overlapping percentage = " + str(round(med_overlapping, 2)) + "%" + ". Req fps: " + str(round(fps, 2)) + "s", transform=ax2.transAxes)
-    ax2.plot_surface(X, Y, Z, rstride=10, cstride=10, facecolors=map / 255, shade=False)
+    # ax2.plot_surface(X, Y, Z, rstride=5, cstride=5, facecolors=map / 255, shade=False)
     # =============================
     ax2.plot(x, y, z, c='r', marker='o')
     ax2.scatter(x[0], y[0], z[0], s=40, c='b', marker='o')
@@ -161,4 +161,4 @@ if __name__ == "__main__":
     map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
     clear_folder('sample_folder/*')
     # x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_lin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 10), 640, 480, 5, map)
+    smart_sampler(gen_sin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 120), 640, 480, map)
