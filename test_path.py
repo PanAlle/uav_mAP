@@ -13,14 +13,14 @@ from matplotlib._png import read_png
 from collections import namedtuple
 
 
-
+# Clean the sample folder
 def clear_folder(folder_path):
     files = glob.glob(folder_path)
     for f in files:
         os.remove(f)
     print("Folder cleared")
 
-
+# Generate a sine path over the given image
 def gen_sin_path(img_path, sample):
     map = cv2.imread(img_path)
     x = []
@@ -33,7 +33,7 @@ def gen_sin_path(img_path, sample):
     pt = np.array((x, y, z))
     return pt
 
-
+# Generate a lienar path over the given image
 def gen_lin_path(img_path, sample):
     map = cv2.imread(img_path)
     # Define starting point
@@ -56,7 +56,7 @@ def gen_lin_path(img_path, sample):
     pt = np.array((x, y, z))
     return pt
 
-
+# Generate an elliptical path over the given image
 def gen_elliptical_path(img_path, sample):
     map = cv2.imread(img_path)
     x = []
@@ -69,7 +69,7 @@ def gen_elliptical_path(img_path, sample):
     pt = np.array((x, y, z))
     return pt
 
-
+# Generate a collapsing ellipses ovet the given image, rotation parameter define the grade of collapsing
 def gen_coll_elliptical_path(img_path, sample, rotation):
     map = cv2.imread(img_path)
     x = []
@@ -82,6 +82,8 @@ def gen_coll_elliptical_path(img_path, sample, rotation):
         y.append((int(lmb * 0.5 * map.shape[0] / 2 * math.sin(math.radians(theta))) + map.shape[0] / 2))
     pt = np.array((x, y))
     return pt
+
+# Get points in pixel based coordinates (px, py, z (z is scale factor and is a number going around 1)) from a csv to sample over a given map
 
 def path_from_data(csv_file):
     x = []
@@ -98,11 +100,12 @@ def path_from_data(csv_file):
     print("Points vector created")
     return pt
 
+# Creates the samples based on a set of given points, sample wanted dimensions and map
 def smart_sampler(pt, pixel_x, pixel_y, map):
     x = pt[0]
     y = pt[1]
     z = pt[2]
-    print(len(x))
+
     for i in range(0, len(x)):
         x[i] = max(x[i], pixel_x / 2)
     counter = 0
@@ -113,7 +116,7 @@ def smart_sampler(pt, pixel_x, pixel_y, map):
         scale_factor = z[i]
         pixel_scale_x = int(pixel_x * scale_factor)
         pixel_scale_y = int(pixel_y * scale_factor)
-       # ROTATION BASED ON TANGENT
+       # Compute the tangent considering 2 concurrent points
         if i+1 != len(x):
             # radians = math.atan2(y[i + 1] - y[i], x[i + 1] - x[i])
             radians = math.atan2(x[i + 1] - x[i], y[i + 1] - y[i])
@@ -133,7 +136,6 @@ def smart_sampler(pt, pixel_x, pixel_y, map):
             filename = "sample_folder/sample_number" + str(counter) + ".png"
             gps_coordinates(filename, x[i], y[i])
             cv2.imwrite(filename, sample)
-            # print("Sample " + str(i) + " written")
     # # Plot the map on the 3d graph
     # # =============================
     # xx, yy = np.meshgrid(np.linspace(0, map.shape[1], map.shape[1]), np.linspace(0, map.shape[0], map.shape[0]))
