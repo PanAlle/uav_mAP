@@ -74,6 +74,8 @@ def gen_coll_elliptical_path(img_path, sample, rotation):
     map = cv2.imread(img_path)
     x = []
     y = []
+    z = []
+
     for theta in range(0, rotation * 360, int(rotation * 360 / sample)):
         lmb = 1 - theta / (rotation * 360)
         x.append((int(lmb * 0.5 * map.shape[1] / 2 * math.cos(math.radians(theta))) + map.shape[1] / 2))
@@ -81,55 +83,73 @@ def gen_coll_elliptical_path(img_path, sample, rotation):
     pt = np.array((x, y))
     return pt
 
+def path_from_data(csv_file):
+    x = []
+    y = []
+    z = []
+    with open(csv_file, 'r') as data_file:
+        csv_reader = csv.reader(data_file, delimiter=',')
+        header = next(csv_reader)
+        for row in csv_reader:
+            x.append(float(row[0]))
+            y.append(float(row[1]))
+            z.append(float(row[2]))
+    pt = np.array((x, y, z))
+    print("Points vector created")
+    return pt
 
 def smart_sampler(pt, pixel_x, pixel_y, map):
     x = pt[0]
     y = pt[1]
     z = pt[2]
+    print(len(x))
     for i in range(0, len(x)):
         x[i] = max(x[i], pixel_x / 2)
     counter = 0
-    med_overlapping, fps = overlapping_area(x,y, pixel_x, pixel_y)
+    med_overlapping, fps = overlapping_area(x, y, pixel_x, pixel_y)
+    # print("Overlapping area computed")
     for i in range(0, len(x)):
         # SCALE - define a scale factor for each dimension
-        scale_factor = 1 + z[i]
+        scale_factor = z[i]
         pixel_scale_x = int(pixel_x * scale_factor)
         pixel_scale_y = int(pixel_y * scale_factor)
        # ROTATION BASED ON TANGENT
         if i+1 != len(x):
             # radians = math.atan2(y[i + 1] - y[i], x[i + 1] - x[i])
             radians = math.atan2(x[i + 1] - x[i], y[i + 1] - y[i])
+            # print("Compute tangent")
         else:
             radians = math.atan2(y[i] - y[i - 1], x[i] - x[i - 1])
-
+            # print("Compute tangent")
         M = cv2.getRotationMatrix2D((x[i], y[i]), math.degrees( - radians), 1)
         map_T = cv2.warpAffine(map, M, (map.shape[1], map.shape[0]))
-
+        # print("Map rotated")
         sample = map_T[int(y[i] - pixel_scale_y / 2):int(y[i] + pixel_scale_y / 2),
                  int(x[i] - pixel_scale_x / 2): int(x[i] + pixel_scale_x / 2)]
+        # print("Sample" + str(i) + "computed")
         if sample.shape == (pixel_scale_y, pixel_scale_x, 3) and cv2.countNonZero(cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)) != 0:
             sample = cv2.resize(sample, (pixel_x, pixel_y))
             counter += 1
             filename = "sample_folder/sample_number" + str(counter) + ".png"
             gps_coordinates(filename, x[i], y[i])
             cv2.imwrite(filename, sample)
-
-    # Plot the map on the 3d graph
+            # print("Sample " + str(i) + " written")
+    # # Plot the map on the 3d graph
+    # # =============================
+    # xx, yy = np.meshgrid(np.linspace(0, map.shape[1], map.shape[1]), np.linspace(0, map.shape[0], map.shape[0]))
+    # X = xx
+    # Y = yy
+    # Z = min(z) * np.ones(X.shape) - 2
+    # # create the figure
+    # fig = plt.figure()
+    # # show the 3D rotated projection
+    # ax2 = fig.add_subplot(111, projection='3d')
+    # ax2.text2D(0.05, 0.95, "Medium overlapping percentage = " + str(round(med_overlapping, 2)) + "%" + ". Req fps: " + str(round(fps, 2)) + "s", transform=ax2.transAxes)
+    # # ax2.plot_surface(X, Y, Z, rstride=5, cstride=5, facecolors=map / 255, shade=False)
     # =============================
-    xx, yy = np.meshgrid(np.linspace(0, map.shape[1], map.shape[1]), np.linspace(0, map.shape[0], map.shape[0]))
-    X = xx
-    Y = yy
-    Z = min(z) * np.ones(X.shape) - 2
-    # create the figure
-    fig = plt.figure()
-    # show the 3D rotated projection
-    ax2 = fig.add_subplot(111, projection='3d')
-    ax2.text2D(0.05, 0.95, "Medium overlapping percentage = " + str(round(med_overlapping, 2)) + "%" + ". Req fps: " + str(round(fps, 2)) + "s", transform=ax2.transAxes)
-    # ax2.plot_surface(X, Y, Z, rstride=5, cstride=5, facecolors=map / 255, shade=False)
-    # =============================
-    ax2.plot(x, y, z, c='r', marker='o')
-    ax2.scatter(x[0], y[0], z[0], s=40, c='b', marker='o')
-    plt.show()
+    # ax2.plot(x, y, z, c='r', marker='o')
+    # ax2.scatter(x[0], y[0], z[0], s=40, c='b', marker='o')
+    # plt.show()
 
 
 def gps_coordinates(filename, x, y):
@@ -158,7 +178,12 @@ if __name__ == "__main__":
     with open('gps_xyz.csv', 'w') as file:
         writer = csv.writer(file)
         writer.writerow(["sample_name", "x center", "y center"])
-    map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
+    #  GARCHING CAMPUS MAP
+    # map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
+
+    #  ILLINOIS FIELD MAP
+    map = cv2.imread("sample_folder_illinois/illinois_map.png")
+
     clear_folder('sample_folder/*')
-    # x, y = elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 1)
-    smart_sampler(gen_sin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 120), 640, 480, map)
+    # smart_sampler(gen_sin_path("img_save/V2_map_campus/map_campus_NM_MB.png", 120), 640, 480, map)
+    smart_sampler(path_from_data('flights/393/illinois_sample_infos.csv'), 1000, 750, map)

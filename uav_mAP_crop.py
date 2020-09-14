@@ -23,9 +23,10 @@ def load_images_from_folder(folder):
     for filename in os.listdir(folder):
         sorted_list.append(filename)
     sorted_list.sort(key=natural_keys)
-    sorted_list.reverse()
+    # sorted_list.reverse()
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder, filename))
+        # img = img[:][200:1750]
         if img is not None:
             images.append(img)
     print("Images loaded")
@@ -119,7 +120,7 @@ def feature_matching(base_img_descriptor, next_img_descriptor):
     # Initialize an array to store selected matches based on Lowe's ratio
     sel_matches = []
     for m, n in matches:
-        if m.distance < 0.6 * n.distance:
+        if m.distance < 0.7 * n.distance:
             sel_matches.append(m)
     return sel_matches
 
@@ -180,7 +181,7 @@ if __name__ == "__main__":
     images = load_images_from_folder("sample_folder")
     base_img = images[0]
     # huge_image = np.zeros((int(0.25 * images[0].shape[0]*len(images)), int(0.25* images[0].shape[1]*len(images)), 3), np.uint8)
-    huge_image = np.zeros((10000, 10000, 3), np.uint8)
+    huge_image = np.zeros((20000, 20000, 3), np.uint8)
     huge_image[ int(huge_image.shape[0] / 2 - base_img.shape[0] / 2): int(huge_image.shape[0] / 2 - base_img.shape[0] / 2) +
                                                           base_img.shape[0],
                 int(huge_image.shape[1] / 2 - base_img.shape[1] / 2): int(huge_image.shape[1] / 2 - base_img.shape[1] / 2) +
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     base_img_center_point[0, 2] = huge_image.shape[1] / 2
     base_img_center_point[1, 2] = huge_image.shape[0] / 2
     base_pts = np.array(base_img_center_point)
-    offset_value = 100
+    offset_value = 200
     vector = [base_pts]
 
     for i in range(1, len(images)):
@@ -208,8 +209,6 @@ if __name__ == "__main__":
             kp_next_img, kp_descriptor_next_img = features_detection(img2_GS)
         else:
             cropped_base = final_img[edge_1[0][1]:edge_3[0][1], edge_1[0][0]:edge_3[0][0], ...]
-            cv2.imshow("Cropped image", cropped_base)
-            cv2.waitKey(30)
             img1_GS = cv2.GaussianBlur(cv2.cvtColor(cropped_base, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             img2_GS = cv2.GaussianBlur(cv2.cvtColor(next_img, cv2.COLOR_BGR2GRAY), (5, 5), 0)
             kp_base_img, kp_descriptor_base_img = features_detection(img1_GS)
@@ -233,20 +232,20 @@ if __name__ == "__main__":
         print("iteration number ", i, " completed")
 
     final_img = cv2.medianBlur(final_img, 3)
-    for i in next_center:
-        cv2.circle(final_img, (int(i[0, 2]), int(i[1, 2])), 5, (255, 255, 0), -1)
-    row_of_interest = []
-    with open('gps_xyz.csv', 'r') as file:
-        csv_reader = csv.reader(file, delimiter=',')
-        header = next(csv_reader)
-        for row in csv_reader:
-            row_of_interest.append(row)
-    for i in range(0, len(next_center)):
-        if i % 5 == 0:
-            # print(row_of_interest[i])
-            cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]),
-                        (int(next_center[i][0][2] + 10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5,
-                        (255, 255, 0))
+    # for i in next_center:
+    #     cv2.circle(final_img, (int(i[0, 2]), int(i[1, 2])), 5, (255, 255, 0), -1)
+    # row_of_interest = []
+    # with open('gps_xyz.csv', 'r') as file:
+    #     csv_reader = csv.reader(file, delimiter=',')
+    #     header = next(csv_reader)
+    #     for row in csv_reader:
+    #         row_of_interest.append(row)
+    # for i in range(0, len(next_center)):
+    #     if i % 5 == 0:
+    #         # print(row_of_interest[i])
+    #         cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]),
+    #                     (int(next_center[i][0][2] + 10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5,
+    #                     (255, 255, 0))
     # cv2.imshow("next", final_img)
     save_file_name = "img_save/cropping/crop" + str(images[0].shape[0]) + "X" + str(
         images[0].shape[1]) + "_N_img" + str(len(images)) + "_Offset_" + str(offset_value) + ".png"
