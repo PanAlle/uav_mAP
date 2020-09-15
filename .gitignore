@@ -1,2 +1,3 @@
 # Project exclude paths
 /venv/
+/flights/393/flight_log_uav_mAP.csv
