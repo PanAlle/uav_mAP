@@ -26,9 +26,10 @@ def load_images_from_folder(folder):
         sorted_list.append(filename)
     sorted_list.sort(key=natural_keys)
     # Analyze the images in starting from the last one. Used for test purpose
-    # sorted_list.reverse()
+    sorted_list.reverse()
     for filename in sorted_list:
         img = cv2.imread(os.path.join(folder, filename))
+        # img = img[200:1700, 0:1150]
         if img is not None:
             images.append(img)
     print("Images loaded")
@@ -188,7 +189,7 @@ if __name__ == "__main__":
     # The offset value defines the number of pixel that need to be added to each side of the new image. This allows
     # to consider more area, and have a better stitching result by looking around the image frame and not only at just
     # the last image
-    offset_value = 200
+    offset_value = 400
     vector = [base_pts]
 
     for i in range(1, len(images)):
@@ -250,7 +251,6 @@ if __name__ == "__main__":
     #         cv2.putText(final_img, "X: " + str(row_of_interest[i][1]) + " Y: " + str(row_of_interest[i][2]),
     #                     (int(next_center[i][0][2] + 10), int(next_center[i][1][2])), cv2.FONT_ITALIC, 0.5,
     #                     (255, 255, 0))
-    # cv2.imshow("next", final_img)
 
     # Save the image
     save_file_name = "img_save/cropping/crop" + str(images[0].shape[0]) + "X" + str(

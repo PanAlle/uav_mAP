@@ -44,11 +44,12 @@ with open('flights/393/flight_log_uav_mAP.csv', 'r') as file_read:
     # with open('flights/393/csv_google.csv', 'w', newline='') as file_write_1:
     #     writer = csv.writer(file_write_1)
     #     writer.writerow(["Latitude", "Longitude", "Point" + str(row_number)])
+    hour_offset = 1440000
     for row in csv_reader:
         row_number += 1
         # The log file contains 100 reads per second, 100 rows = 1 second. Read from the first hour (60*60*100) for a
         # minute. Read from the first hour on in order to avoid reads related to takeoff
-        if row_number >= 360000 and row_number <= 365000 and row_number % 100 == 0:
+        if row_number >= hour_offset + 375000 and row_number <= hour_offset + 397000 and row_number % 50 == 0:
             IMU_latitude.append(float(row[0]))
             IMU_longitude.append(float(row[1]))
             IMU_altitude.append(float(row[2]))
@@ -70,15 +71,16 @@ with open('flights/393/flight_log_uav_mAP.csv', 'r') as file_read:
         for i in range(len(IMU_latitude)):
             # The value for the interpolation are manually inserted as follow:
             # linear_interpolation(lat1, px1, lat2, px2) and linear_interpolation(long1, py1, long2, py2)
-            IMU_latitude[i] = linear_interpolation(40.060875, 9000, 40.056580, 1800, IMU_latitude[i])
-            IMU_longitude[i] = linear_interpolation(-88.552345, 10500, -88.547112, 1900, IMU_longitude[i])
+            IMU_latitude[i] = linear_interpolation(40.060875, 8500, 40.056580, 1300, IMU_latitude[i])
+            IMU_longitude[i] = linear_interpolation(-88.552345, 10000, -88.547112, 1400, IMU_longitude[i])
             x.append(IMU_latitude[i])
             y.append(IMU_longitude[i])
             # The height value is weighted on the mean value of the height in order to have a value ranging around 1
             scale = IMU_altitude[i] / IMU_altitude_mean
+            print(IMU_altitude_mean)
             writer.writerow([IMU_latitude[i], IMU_longitude[i], scale, Euler_yaw[i]])
 # Plot the points on the image
-im = plt.imread("sample_folder_illinois/illinois_map.png")
+im = plt.imread("illinois_map_v1.png")
 implot = plt.imshow(im)
 plt.scatter(x, y, s=10)
 plt.show()
