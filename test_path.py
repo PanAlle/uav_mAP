@@ -204,11 +204,11 @@ if __name__ == "__main__":
         writer = csv.writer(file)
         writer.writerow(["sample_name", "x center", "y center"])
     #  GARCHING CAMPUS MAP
-    # map = cv2.imread("img_save/V2_map_campus/map_campus_NM_MB.png")
+    # map = cv2.imread("img_save/V2_map_campus/garching_campus_map.png")
 
     #  ILLINOIS FIELD MAP
-    map = cv2.imread("illinois_map_v1.png")
+    map = cv2.imread("sample_maps/illinois_field_map.png")
 
     clear_folder('sample_folder/*')
-    # smart_sampler(gen_elliptical_path("img_save/V2_map_campus/map_campus_NM_MB.png", 120), 640, 480, map)
+    # smart_sampler(gen_elliptical_path("img_save/V2_map_campus/garching_campus_map.png", 120), 640, 480, map)
     smart_sampler(path_from_data('flights/393/illinois_sample_infos.csv'), 640, 480, map)

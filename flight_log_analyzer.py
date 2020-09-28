@@ -80,7 +80,7 @@ with open('flights/393/flight_log_uav_mAP.csv', 'r') as file_read:
             print(IMU_altitude_mean)
             writer.writerow([IMU_latitude[i], IMU_longitude[i], scale, Euler_yaw[i]])
 # Plot the points on the image
-im = plt.imread("illinois_map_v1.png")
+im = plt.imread("illinois_field_map.png")
 implot = plt.imshow(im)
 plt.scatter(x, y, s=10)
 plt.show()
